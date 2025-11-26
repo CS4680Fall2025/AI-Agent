@@ -1,0 +1,5 @@
+cd A:\Github\AI-Agent-TestRepo
+repo
+status
+# This is a comment
+deploy "echo 'Simulating deployment...'"

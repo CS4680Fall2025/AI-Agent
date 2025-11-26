@@ -1,0 +1,1 @@
+commit "Initial commit: Add Gemini Git Agent structure (backend/frontend) and supporting GitHelper module"
