@@ -27,7 +27,15 @@ function App() {
       handleManualUpdate(true)
       startPolling()
     } catch (err) {
+      console.error('Full error:', err)
       addLog(`Error setting repo: ${err.message}`)
+      if (err.response) {
+        addLog(`Response status: ${err.response.status}`)
+        addLog(`Response data: ${JSON.stringify(err.response.data)}`)
+      } else if (err.request) {
+        addLog('No response received from server. Is the backend running?')
+        addLog(`Target URL: ${API_URL}/set-repo`)
+      }
     }
   }
 

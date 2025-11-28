@@ -1,5 +1,5 @@
 @echo off
-set PYTHON_PATH=C:\Users\johns\AppData\Local\Programs\Python\Python313\python.exe
+set PYTHON_PATH=python
 
 echo Installing dependencies...
 "%PYTHON_PATH%" -m pip install -r requirements.txt

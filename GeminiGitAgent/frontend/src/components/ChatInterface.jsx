@@ -39,7 +39,8 @@ function ChatInterface({ onExecuteDSL }) {
             }])
 
         } catch (err) {
-            setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${err.message}` }])
+            const errorMessage = err.response?.data?.error || err.message
+            setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${errorMessage}` }])
         } finally {
             setLoading(false)
         }
