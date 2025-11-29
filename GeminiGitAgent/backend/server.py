@@ -186,6 +186,7 @@ def chat():
         return jsonify({"error": "No message provided"}), 400
 
     status_output = helper.run_command("git status -s -u") or "No changes."
+    log_output = helper.run_command("git log --oneline -n 10") or "No recent commits."
 
     try:
         prompt = f"""
@@ -193,6 +194,9 @@ def chat():
 
         Current Git Status:
         {status_output}
+
+        Recent Commit Log:
+        {log_output}
 
         User Message: "{user_message}"
 
@@ -208,6 +212,7 @@ def chat():
            - `pull`
            - `deploy "<command>"`
            - `undo`
+           - `log <limit>`
 
         Return JSON format:
         {{
@@ -260,6 +265,174 @@ def execute_dsl():
     finally:
         if temp_file and os.path.exists(temp_file):
             os.remove(temp_file)
+
+
+@app.route("/api/commits", methods=["GET"])
+def get_commit_count():
+    helper = get_helper()
+    if not helper:
+        return jsonify({"error": "Repository not set"}), 400
+
+    total_count = helper.run_command("git rev-list --count HEAD")
+    if total_count is None:
+        return jsonify({"total": 0, "unpushed": 0})
+    
+    # Use git status -sb to get ahead/behind info
+    # Output formats:
+    # ## main...origin/main [ahead 1]
+    # ## main...origin/main [ahead 1, behind 1]
+    # ## main (no upstream)
+    status_sb = helper.run_command("git status -sb")
+    unpushed_count = 0
+    
+    if status_sb:
+        first_line = status_sb.splitlines()[0]
+        if "..." not in first_line:
+            # No upstream, so all commits are unpushed
+            unpushed_count = total_count
+        else:
+            # Has upstream, check for [ahead N]
+            import re
+            match = re.search(r'ahead (\d+)', first_line)
+            if match:
+                unpushed_count = int(match.group(1))
+            else:
+                unpushed_count = 0
+
+    try:
+        return jsonify({
+            "total": int(total_count.strip()),
+            "unpushed": int(unpushed_count) if isinstance(unpushed_count, (int, str)) else 0
+        })
+    except ValueError:
+        return jsonify({"error": "Could not parse commit count"}), 500
+
+
+@app.route("/api/commit", methods=["POST"])
+def manual_commit():
+    helper = get_helper()
+    if not helper:
+        return jsonify({"error": "Repository not set"}), 400
+
+    data = request.json or {}
+    message = data.get("message")
+
+    if not message:
+        return jsonify({"error": "Commit message required"}), 400
+
+    helper.run_command("git add .")
+    output = helper.run_command(f'git commit -m "{message}"')
+    
+    if output is None:
+        return jsonify({"error": "Commit failed"}), 500
+        
+    return jsonify({"output": output})
+
+
+@app.route("/api/push", methods=["POST"])
+def manual_push():
+    helper = get_helper()
+    if not helper:
+        return jsonify({"error": "Repository not set"}), 400
+
+    output = helper.run_command("git push")
+    
+    if output is None:
+        return jsonify({"error": "Push failed"}), 500
+        
+    return jsonify({"output": output})
+
+
+@app.route("/api/files", methods=["GET"])
+def list_files():
+    global current_repo_path
+    if not current_repo_path:
+        return jsonify({"error": "Repository not set"}), 400
+
+    files_list = []
+    ignore_dirs = {'.git', '__pycache__', 'node_modules', 'venv', '.idea', '.vscode'}
+    
+    for root, dirs, files in os.walk(current_repo_path):
+        # Modify dirs in-place to skip ignored directories
+        dirs[:] = [d for d in dirs if d not in ignore_dirs]
+        
+        for file in files:
+            full_path = os.path.join(root, file)
+            rel_path = os.path.relpath(full_path, current_repo_path)
+            files_list.append(rel_path)
+            
+    return jsonify({"files": sorted(files_list)})
+
+
+@app.route("/api/file", methods=["GET", "POST"])
+def handle_file():
+    global current_repo_path
+    if not current_repo_path:
+        return jsonify({"error": "Repository not set"}), 400
+
+    if request.method == "GET":
+        rel_path = request.args.get("path")
+        if not rel_path:
+            return jsonify({"error": "Path required"}), 400
+            
+        full_path = os.path.join(current_repo_path, rel_path)
+        
+        # Security check: ensure path is within repo
+        if not os.path.commonpath([full_path, current_repo_path]) == current_repo_path:
+             return jsonify({"error": "Invalid path"}), 400
+             
+        if not os.path.exists(full_path):
+            return jsonify({"error": "File not found"}), 404
+            
+        try:
+            with open(full_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            return jsonify({"content": content})
+        except UnicodeDecodeError:
+            return jsonify({"error": "Binary or non-UTF-8 file"}), 400
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    elif request.method == "POST":
+        data = request.json
+        rel_path = data.get("path")
+        content = data.get("content")
+        
+        if not rel_path or content is None:
+            return jsonify({"error": "Path and content required"}), 400
+            
+        full_path = os.path.join(current_repo_path, rel_path)
+        
+        # Security check
+        if not os.path.commonpath([full_path, current_repo_path]) == current_repo_path:
+             return jsonify({"error": "Invalid path"}), 400
+             
+        try:
+            with open(full_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            return jsonify({"message": "File saved"})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/diff", methods=["GET"])
+def get_file_diff():
+    helper = get_helper()
+    if not helper:
+        return jsonify({"error": "Repository not set"}), 400
+        
+    rel_path = request.args.get("path")
+    if not rel_path:
+        return jsonify({"error": "Path required"}), 400
+        
+    # git diff HEAD -- <path> shows uncommitted changes (staged + unstaged) vs HEAD
+    # If file is untracked, diff might be empty or error.
+    diff_output = helper.run_command(f'git diff HEAD -- "{rel_path}"')
+    
+    if diff_output is None:
+        return jsonify({"diff": ""})
+        
+    return jsonify({"diff": diff_output})
 
 
 if __name__ == "__main__":
