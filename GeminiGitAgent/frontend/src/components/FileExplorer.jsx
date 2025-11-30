@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 
 const API_URL = 'http://127.0.0.1:5000/api'
@@ -77,19 +77,13 @@ const FileTreeNode = ({ name, node, path, onSelectFile, depth = 0 }) => {
     )
 }
 
-function FileExplorer({ repoPath, onSelectFile }) {
+function FileExplorer({ repoPath, onSelectFile, refreshTrigger }) {
     const [files, setFiles] = useState([])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
     const [searchTerm, setSearchTerm] = useState('')
 
-    useEffect(() => {
-        if (repoPath) {
-            fetchFiles()
-        }
-    }, [repoPath])
-
-    const fetchFiles = async () => {
+    const fetchFiles = useCallback(async () => {
         setLoading(true)
         try {
             const res = await axios.get(`${API_URL}/files`)
@@ -101,7 +95,20 @@ function FileExplorer({ repoPath, onSelectFile }) {
         } finally {
             setLoading(false)
         }
-    }
+    }, [])
+
+    useEffect(() => {
+        if (repoPath) {
+            fetchFiles()
+        }
+    }, [repoPath, fetchFiles])
+
+    // Auto-refresh when refreshTrigger changes (indicates file changes detected)
+    useEffect(() => {
+        if (repoPath && refreshTrigger !== undefined && refreshTrigger !== null) {
+            fetchFiles()
+        }
+    }, [refreshTrigger, repoPath, fetchFiles])
 
     const filteredFiles = files.filter(f =>
         f.toLowerCase().includes(searchTerm.toLowerCase())

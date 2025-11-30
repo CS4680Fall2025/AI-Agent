@@ -6,6 +6,139 @@ Starting backend...
  * Running on http://127.0.0.1:5000
  * Running on http://10.0.0.17:5000
 Press CTRL+C to quit
-[STDERR]  * Restarting with stat
+[STDERR]  * Restarting with watchdog (windowsapi)
 [STDERR]  * Debugger is active!
 [STDERR]  * Debugger PIN: 899-428-025
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:19] "OPTIONS /api/set-repo HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:20] "POST /api/set-repo HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:20] "OPTIONS /api/poll HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:20] "GET /api/branch HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:20] "GET /api/branch HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:20] "GET /api/commits HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:20] "GET /api/branches HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:20] "GET /api/commits HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:20] "GET /api/branches HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:22] "POST /api/poll HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:22] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:22] "GET /api/branch HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:22] "GET /api/commits HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:22] "GET /api/branches HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:23] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:24] "OPTIONS /api/file/stage HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:24] "OPTIONS /api/file/stage HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:24] "OPTIONS /api/file/stage HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:24] "POST /api/file/stage HTTP/1.1" 500 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:24] "POST /api/file/stage HTTP/1.1" 500 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:24] "POST /api/file/stage HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:25] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:26] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:28] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:29] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:31] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:32] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:34] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:35] "OPTIONS /api/branch/switch HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:35] "POST /api/branch/switch HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:35] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:35] "GET /api/branch HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:35] "GET /api/commits HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:35] "GET /api/branches HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:35] "OPTIONS /api/poll HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:37] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:38] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:39] "POST /api/branch/switch HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:39] "GET /api/branch HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:39] "GET /api/commits HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:39] "GET /api/branches HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:40] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:41] "POST /api/poll HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:41] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:41] "GET /api/branch HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:41] "GET /api/commits HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:41] "GET /api/branches HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:43] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:43] "POST /api/poll HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:43] "GET /api/branch HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:43] "GET /api/commits HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:43] "GET /api/branches HTTP/1.1" 200 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:44] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:46] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:47] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:49] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:50] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:52] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:53] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:55] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:56] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:58] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:17:59] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:01] "[STDERR] POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:02] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:04] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:05] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:07] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:08] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:10] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:11] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:13] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:14] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:16] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:17] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:19] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:20] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:22] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:23] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:25] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:26] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:28] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:29] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:31] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:32] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:34] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:35] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:37] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:38] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:40] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:41] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:43] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:44] "POST /api/poll HTTP/1.1" 415 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:46] "POST /api/poll HTTP/1.1" 415 -
+[STDERR]  * Detected change in 'C:\\Users\\johns\\Documents\\GitHub\\AI-Agent\\GeminiGitAgent\\backend\\watcher.py', reloading
+[STDOUT] Error executing command: git add "tst/test2.txt"
+fatal: Unable to create 'C:/Users/johns/Documents/GitHub/AI-Agent-TestRepo/.git/index.lock': File exists.
+
+Another git process seems to be running in this repository, e.g.
+an editor opened by 'git commit'. Please make sure all processes
+are terminated then try again. If it still fails, a git process
+may have crashed in this repository earlier:
+remove the file manually to continue.
+
+Error executing command: git add "tst/test.txt"
+fatal: Unable to create 'C:/Users/johns/Documents/GitHub/AI-Agent-TestRepo/.git/index.lock': File exists.
+
+Another git process seems to be running in this repository, e.g.
+an editor opened by 'git commit'. Please make sure all processes
+are terminated then try again. If it still fails, a git process
+may have crashed in this repository earlier:
+remove the file manually to continue.
+
+[STDERR]  * Restarting with watchdog (windowsapi)
+[STDERR]  * Debugger is active!
+[STDERR]  * Debugger PIN: 899-428-025
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:47] "POST /api/poll HTTP/1.1" 400 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:49] "POST /api/poll HTTP/1.1" 400 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:50] "POST /api/poll HTTP/1.1" 400 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:52] "POST /api/poll HTTP/1.1" 400 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:53] "POST /api/poll HTTP/1.1" 400 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:55] "POST /api/poll HTTP/1.1" 400 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:56] "POST /api/poll HTTP/1.1" 400 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:58] "POST /api/poll HTTP/1.1" 400 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:18:59] "POST /api/poll HTTP/1.1" 400 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:19:01] "POST /api/poll HTTP/1.1" 400 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:19:02] "POST /api/poll HTTP/1.1" 400 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:19:04] "POST /api/poll HTTP/1.1" 400 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:19:05] "POST /api/poll HTTP/1.1" 400 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:19:07] "POST /api/poll HTTP/1.1" 400 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:19:08] "POST /api/poll HTTP/1.1" 400 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:19:10] "POST /api/poll HTTP/1.1" 400 -
+[STDERR] 127.0.0.1 - - [30/Nov/2025 15:19:11] "POST /api/poll HTTP/1.1" 400 -

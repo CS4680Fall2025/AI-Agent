@@ -47,9 +47,19 @@ function ChatInterface({ onExecuteDSL }) {
     }
 
     return (
-        <div className="card" style={{ height: '400px', display: 'flex', flexDirection: 'column' }}>
-            <div className="card-header">Chat with Gemini</div>
-            <div className="card-body" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#161b22' }}>
+            <div style={{
+                background: '#21262d',
+                padding: '16px',
+                borderBottom: '1px solid #30363d',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+            }}>
+                <span>Chat with Gemini</span>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px' }}>
                 {messages.map((msg, idx) => (
                     <div key={idx} style={{
                         alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',

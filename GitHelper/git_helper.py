@@ -9,7 +9,7 @@ class GitHelper:
         if not os.path.exists(self.cwd):
             print(f"Warning: Directory '{self.cwd}' does not exist.")
 
-    def run_command(self, command):
+    def run_command(self, command, strip=True):
         try:
             result = subprocess.run(
                 command,
@@ -20,7 +20,7 @@ class GitHelper:
                 text=True,
                 shell=True
             )
-            return result.stdout.strip()
+            return result.stdout.strip() if strip else result.stdout
         except subprocess.CalledProcessError as e:
             print(f"Error executing command: {command}")
             print(e.stderr)
@@ -105,6 +105,15 @@ class GitHelper:
         else:
             print(f"Error: Directory '{new_path}' does not exist.")
 
+    def get_log(self, limit=10):
+        """Get recent git log"""
+        print(f"Getting last {limit} commits...")
+        log_output = self.run_command(f"git log --oneline -n {limit}")
+        if log_output:
+            print(log_output)
+            return log_output
+        return None
+
 class DSLExecutor:
     def __init__(self, helper):
         self.helper = helper
@@ -156,6 +165,9 @@ class DSLExecutor:
                 self.helper.change_directory(arg)
             else:
                 print("Error: 'cd' requires a path.")
+        elif command == 'log':
+            limit = int(arg) if arg and arg.isdigit() else 10
+            self.helper.get_log(limit)
         else:
             print(f"Error: Unknown command '{command}'")
 
