@@ -9,7 +9,7 @@ class GitHelper:
         if not os.path.exists(self.cwd):
             print(f"Warning: Directory '{self.cwd}' does not exist.")
 
-    def run_command(self, command):
+    def run_command(self, command, strip=True):
         try:
             result = subprocess.run(
                 command,
@@ -20,7 +20,7 @@ class GitHelper:
                 text=True,
                 shell=True
             )
-            return result.stdout.strip()
+            return result.stdout.strip() if strip else result.stdout
         except subprocess.CalledProcessError as e:
             print(f"Error executing command: {command}")
             print(e.stderr)
@@ -105,6 +105,47 @@ class GitHelper:
         else:
             print(f"Error: Directory '{new_path}' does not exist.")
 
+    def get_log(self, limit=10):
+        """Get recent git log"""
+        print(f"Getting last {limit} commits...")
+        log_output = self.run_command(f"git log --oneline -n {limit}")
+        if log_output:
+            print(log_output)
+            return log_output
+        return None
+
+    def get_branch_info(self):
+        """Get current branch info including upstream"""
+        # Use --show-current which works better for unborn branches
+        current_branch = self.run_command("git branch --show-current")
+        if not current_branch:
+             # Fallback
+             current_branch = self.run_command("git rev-parse --abbrev-ref HEAD")
+             
+        if not current_branch:
+            return None
+            
+        # Check for upstream
+        # If branch is unborn (no commits), it can't have upstream
+        try:
+            upstream = self.run_command(f"git rev-parse --abbrev-ref {current_branch}@{{u}}", strip=True)
+        except:
+            upstream = None
+            
+        return {
+            "branch": current_branch,
+            "upstream": upstream,
+            "is_tracking": upstream is not None
+        }
+
+    def publish_branch(self, branch_name):
+        """Publish branch to remote (git push -u)"""
+        print(f"Publishing branch {branch_name}...")
+        if self.run_command(f"git push -u origin {branch_name}") is not None:
+            print(f"Successfully published {branch_name}.")
+            return True
+        return False
+
 class DSLExecutor:
     def __init__(self, helper):
         self.helper = helper
@@ -156,6 +197,9 @@ class DSLExecutor:
                 self.helper.change_directory(arg)
             else:
                 print("Error: 'cd' requires a path.")
+        elif command == 'log':
+            limit = int(arg) if arg and arg.isdigit() else 10
+            self.helper.get_log(limit)
         else:
             print(f"Error: Unknown command '{command}'")
 
