@@ -19,28 +19,37 @@ const buildTree = (paths) => {
     return tree
 }
 
-const FileTreeNode = ({ name, node, path, onSelectFile, depth = 0 }) => {
-    const [expanded, setExpanded] = useState(true) // Default expanded
+const FileTreeNode = ({ name, node, path, onSelectFile, depth = 0, selectedFiles, onToggleSelect }) => {
+    const [expanded, setExpanded] = useState(true)
     const isFolder = node !== null
     const fullPath = path ? `${path}/${name}` : name
+    const isSelected = selectedFiles.has(fullPath)
 
     if (!isFolder) {
         return (
             <div
-                onClick={() => onSelectFile(fullPath)}
+                className="file-item"
                 style={{
-                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
                     padding: '4px 0',
                     paddingLeft: `${depth * 16 + 4}px`,
                     fontSize: '0.9em',
                     color: '#e0e0e0',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
+                    cursor: 'pointer',
+                    backgroundColor: isSelected ? '#2c313a' : 'transparent'
                 }}
-                className="file-item"
             >
-                📄 {name}
+                <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={(e) => onToggleSelect(fullPath, e.target.checked)}
+                    style={{ marginRight: '8px' }}
+                    onClick={(e) => e.stopPropagation()}
+                />
+                <span onClick={() => onSelectFile(fullPath)} style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    📄 {name}
+                </span>
             </div>
         )
     }
@@ -71,6 +80,8 @@ const FileTreeNode = ({ name, node, path, onSelectFile, depth = 0 }) => {
                     path={fullPath}
                     onSelectFile={onSelectFile}
                     depth={depth + 1}
+                    selectedFiles={selectedFiles}
+                    onToggleSelect={onToggleSelect}
                 />
             ))}
         </div>
@@ -82,6 +93,8 @@ function FileExplorer({ repoPath, onSelectFile, refreshTrigger }) {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
     const [searchTerm, setSearchTerm] = useState('')
+    const [selectedFiles, setSelectedFiles] = useState(new Set())
+    const [contextMenu, setContextMenu] = useState(null)
 
     const fetchFiles = useCallback(async () => {
         setLoading(true)
@@ -89,6 +102,7 @@ function FileExplorer({ repoPath, onSelectFile, refreshTrigger }) {
             const res = await axios.get(`${API_URL}/files`)
             setFiles(res.data.files)
             setError(null)
+            setSelectedFiles(new Set()) // Reset selection on refresh
         } catch (err) {
             setError('Failed to load files')
             console.error(err)
@@ -103,12 +117,18 @@ function FileExplorer({ repoPath, onSelectFile, refreshTrigger }) {
         }
     }, [repoPath, fetchFiles])
 
-    // Auto-refresh when refreshTrigger changes (indicates file changes detected)
     useEffect(() => {
         if (repoPath && refreshTrigger !== undefined && refreshTrigger !== null) {
             fetchFiles()
         }
     }, [refreshTrigger, repoPath, fetchFiles])
+
+    // Close context menu on click outside
+    useEffect(() => {
+        const handleClick = () => setContextMenu(null)
+        document.addEventListener('click', handleClick)
+        return () => document.removeEventListener('click', handleClick)
+    }, [])
 
     const filteredFiles = files.filter(f =>
         f.toLowerCase().includes(searchTerm.toLowerCase())
@@ -116,11 +136,68 @@ function FileExplorer({ repoPath, onSelectFile, refreshTrigger }) {
 
     const fileTree = buildTree(filteredFiles)
 
+    const handleToggleSelect = (path, checked) => {
+        const newSelected = new Set(selectedFiles)
+        if (checked) {
+            newSelected.add(path)
+        } else {
+            newSelected.delete(path)
+        }
+        setSelectedFiles(newSelected)
+    }
+
+    const handleSelectAll = (checked) => {
+        if (checked) {
+            setSelectedFiles(new Set(filteredFiles))
+        } else {
+            setSelectedFiles(new Set())
+        }
+    }
+
+    const handleRightClick = (e, path) => {
+        e.preventDefault()
+        // If right-clicked file is not selected, select it (and deselect others unless ctrl is held? No, let's just add it if not present, or clear and select if not present)
+        // Requirement: "When i right click one and multiple are selected, the action should be performed on all of them."
+
+        let newSelected = new Set(selectedFiles)
+        if (path && !selectedFiles.has(path)) {
+            // If right clicking an unselected item, select ONLY that item (standard behavior)
+            newSelected = new Set([path])
+            setSelectedFiles(newSelected)
+        }
+
+        if (newSelected.size > 0) {
+            setContextMenu({
+                x: e.clientX,
+                y: e.clientY,
+                files: Array.from(newSelected)
+            })
+        }
+    }
+
+    const handleBulkAction = (action) => {
+        if (!contextMenu) return
+        console.log(`Performing ${action} on`, contextMenu.files)
+        // Here you would implement the actual bulk actions
+        // For now, let's just log it or maybe open the first one
+        if (action === 'open') {
+            contextMenu.files.forEach(f => onSelectFile(f))
+        }
+        setContextMenu(null)
+    }
+
     if (!repoPath) return null
 
+    const allSelected = filteredFiles.length > 0 && selectedFiles.size === filteredFiles.length
+
     return (
-        <div className="card" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <div className="card-header">
+        <div className="card" style={{ height: '100%', display: 'flex', flexDirection: 'column' }} onContextMenu={(e) => handleRightClick(e, null)}>
+            <div className="card-header" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                />
                 Files
                 <button onClick={fetchFiles} style={{ marginLeft: 'auto', padding: '2px 6px', fontSize: '0.8em' }}>
                     ↻
@@ -146,6 +223,8 @@ function FileExplorer({ repoPath, onSelectFile, refreshTrigger }) {
                             node={fileTree[name]}
                             path=""
                             onSelectFile={onSelectFile}
+                            selectedFiles={selectedFiles}
+                            onToggleSelect={handleToggleSelect}
                         />
                     ))}
                     {filteredFiles.length === 0 && !loading && (
@@ -153,6 +232,36 @@ function FileExplorer({ repoPath, onSelectFile, refreshTrigger }) {
                     )}
                 </div>
             </div>
+
+            {contextMenu && (
+                <div style={{
+                    position: 'fixed',
+                    top: contextMenu.y,
+                    left: contextMenu.x,
+                    background: '#1e1e1e',
+                    border: '1px solid #333',
+                    borderRadius: '4px',
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.5)',
+                    zIndex: 1000,
+                    padding: '4px 0'
+                }}>
+                    <div
+                        style={{ padding: '8px 16px', cursor: 'pointer', color: '#fff' }}
+                        onClick={() => handleBulkAction('open')}
+                    >
+                        Open {contextMenu.files.length} file(s)
+                    </div>
+                    <div
+                        style={{ padding: '8px 16px', cursor: 'pointer', color: '#fff' }}
+                        onClick={() => {
+                            console.log("Delete not implemented yet")
+                            setContextMenu(null)
+                        }}
+                    >
+                        Delete (Not Impl)
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

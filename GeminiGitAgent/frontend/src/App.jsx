@@ -30,6 +30,9 @@ function App() {
   const [selectedFile, setSelectedFile] = useState(null)
   const [fileRefreshTrigger, setFileRefreshTrigger] = useState(0)
   const [showChat, setShowChat] = useState(false)
+  const [showSummary, setShowSummary] = useState(false)
+  const [repoSummary, setRepoSummary] = useState(null)
+  const [loadingSummary, setLoadingSummary] = useState(false)
 
   const addLog = useCallback((msg) => {
     setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev])
@@ -267,6 +270,41 @@ function App() {
               <button onClick={() => setShowLogs(!showLogs)} style={{ padding: '4px 8px', fontSize: '0.9em' }}>
                 {showLogs ? 'Hide Logs' : 'Logs'}
               </button>
+              <button 
+                onClick={async () => {
+                  if (!showSummary) {
+                    setLoadingSummary(true)
+                    try {
+                      const res = await axios.get(`${API_URL}/repo/summary`)
+                      setRepoSummary(res.data)
+                      setShowSummary(true)
+                    } catch (err) {
+                      console.error('Failed to fetch repo summary:', err)
+                    } finally {
+                      setLoadingSummary(false)
+                    }
+                  } else {
+                    setShowSummary(false)
+                  }
+                }}
+                style={{ 
+                  padding: '8px 12px', 
+                  fontSize: '0.9em',
+                  background: showSummary ? '#1f6feb' : '#21262d',
+                  border: '1px solid #30363d',
+                  borderRadius: '6px',
+                  color: '#c9d1d9',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+                title={showSummary ? 'Hide Summary' : 'Show Repository Summary'}
+                disabled={loadingSummary}
+              >
+                <span>📋</span>
+                <span>{loadingSummary ? 'Loading...' : (showSummary ? 'Hide Summary' : 'Summary')}</span>
+              </button>
             </>
           )}
           <button 
@@ -414,6 +452,253 @@ function App() {
           animation: 'slideInUp 0.3s ease-out'
         }}>
           <ChatInterface onExecuteDSL={executeDSL} />
+        </div>
+      )}
+
+      {/* Repository Summary Panel */}
+      {showSummary && repoSummary && (
+        <div style={{
+          position: 'fixed',
+          top: '60px',
+          right: '20px',
+          width: '400px',
+          maxHeight: 'calc(100vh - 100px)',
+          zIndex: 9999,
+          background: '#161b22',
+          border: '1px solid #30363d',
+          borderRadius: '8px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <div style={{
+            padding: '16px',
+            borderBottom: '1px solid #30363d',
+            background: '#21262d',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <h3 style={{ margin: 0, color: '#c9d1d9', fontSize: '1.1em' }}>Repository Summary</h3>
+            <button
+              onClick={() => setShowSummary(false)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#8b949e',
+                cursor: 'pointer',
+                fontSize: '1.2em',
+                padding: '0 8px'
+              }}
+            >
+              ×
+            </button>
+          </div>
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '16px'
+          }}>
+            {/* Repository Name */}
+            <div style={{ marginBottom: '16px' }}>
+              <h2 style={{ margin: '0 0 8px 0', color: '#c9d1d9', fontSize: '1.3em' }}>
+                {repoSummary.name}
+              </h2>
+              {repoSummary.path && (
+                <div style={{ color: '#8b949e', fontSize: '0.85em', wordBreak: 'break-all' }}>
+                  {repoSummary.path}
+                </div>
+              )}
+            </div>
+
+            {/* Description */}
+            {repoSummary.description && (
+              <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #30363d' }}>
+                <h4 style={{ margin: '0 0 8px 0', color: '#c9d1d9', fontSize: '0.95em', fontWeight: '600' }}>
+                  Description
+                </h4>
+                <p style={{ 
+                  margin: 0, 
+                  color: '#8b949e', 
+                  fontSize: '0.9em', 
+                  lineHeight: '1.6',
+                  whiteSpace: 'pre-wrap',
+                  wordWrap: 'break-word'
+                }}>
+                  {repoSummary.description}
+                </p>
+              </div>
+            )}
+
+            {/* Authors */}
+            {repoSummary.authors && repoSummary.authors.length > 0 && (
+              <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #30363d' }}>
+                <h4 style={{ margin: '0 0 8px 0', color: '#c9d1d9', fontSize: '0.95em', fontWeight: '600' }}>
+                  Authors ({repoSummary.authors.length})
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {repoSummary.authors.map((author, i) => (
+                    <div key={i} style={{ color: '#8b949e', fontSize: '0.9em' }}>
+                      <div style={{ color: '#c9d1d9', fontWeight: '500' }}>{author.name}</div>
+                      {author.email && (
+                        <div style={{ fontSize: '0.85em', color: '#6e7681' }}>{author.email}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Current Branch */}
+            {repoSummary.currentBranch && (
+              <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #30363d' }}>
+                <h4 style={{ margin: '0 0 8px 0', color: '#c9d1d9', fontSize: '0.95em', fontWeight: '600' }}>
+                  Current Branch
+                </h4>
+                <div style={{ fontSize: '0.9em', color: '#8b949e' }}>
+                  <span style={{ 
+                    fontFamily: 'ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace',
+                    color: '#58a6ff',
+                    fontWeight: '500'
+                  }}>
+                    {repoSummary.currentBranch}
+                  </span>
+                  {repoSummary.unpushedCommits > 0 && (
+                    <span style={{ marginLeft: '8px', color: '#3fb950' }}>
+                      ({repoSummary.unpushedCommits} unpushed)
+                    </span>
+                  )}
+                  {repoSummary.behindCommits > 0 && (
+                    <span style={{ marginLeft: '8px', color: '#f85149' }}>
+                      ({repoSummary.behindCommits} behind)
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Statistics */}
+            <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #30363d' }}>
+              <h4 style={{ margin: '0 0 8px 0', color: '#c9d1d9', fontSize: '0.95em', fontWeight: '600' }}>
+                Statistics
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.9em', color: '#8b949e' }}>
+                <div>Total Commits: <span style={{ color: '#c9d1d9' }}>{repoSummary.totalCommits}</span></div>
+                <div>Files: <span style={{ color: '#c9d1d9' }}>{repoSummary.fileCount || 0}</span></div>
+                {repoSummary.repoSize && (
+                  <div>Repository Size: <span style={{ color: '#c9d1d9' }}>{repoSummary.repoSize}</span></div>
+                )}
+                <div>Local Branches: <span style={{ color: '#c9d1d9' }}>{repoSummary.branches?.local || 0}</span></div>
+                <div>Remote Branches: <span style={{ color: '#c9d1d9' }}>{repoSummary.branches?.remote || 0}</span></div>
+                {repoSummary.tags && repoSummary.tags.length > 0 && (
+                  <div>Tags: <span style={{ color: '#c9d1d9' }}>{repoSummary.tags.length}</span></div>
+                )}
+                {repoSummary.language && (
+                  <div>Primary Language: <span style={{ color: '#c9d1d9' }}>{repoSummary.language}</span></div>
+                )}
+              </div>
+            </div>
+
+            {/* Tags */}
+            {repoSummary.tags && repoSummary.tags.length > 0 && (
+              <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #30363d' }}>
+                <h4 style={{ margin: '0 0 8px 0', color: '#c9d1d9', fontSize: '0.95em', fontWeight: '600' }}>
+                  Tags ({repoSummary.tags.length})
+                </h4>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {repoSummary.tags.slice(0, 10).map((tag, i) => (
+                    <span
+                      key={i}
+                      style={{
+                        padding: '2px 8px',
+                        background: '#21262d',
+                        border: '1px solid #30363d',
+                        borderRadius: '12px',
+                        fontSize: '0.8em',
+                        color: '#58a6ff',
+                        fontFamily: 'ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace'
+                      }}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* First Commit */}
+            {repoSummary.firstCommit && (
+              <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #30363d' }}>
+                <h4 style={{ margin: '0 0 8px 0', color: '#c9d1d9', fontSize: '0.95em', fontWeight: '600' }}>
+                  First Commit
+                </h4>
+                <div style={{ fontSize: '0.9em', color: '#8b949e' }}>
+                  <div style={{ color: '#c9d1d9', marginBottom: '4px' }}>{repoSummary.firstCommit.message}</div>
+                  <div style={{ fontSize: '0.85em', marginTop: '4px' }}>
+                    <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace', color: '#58a6ff' }}>
+                      {repoSummary.firstCommit.hash.substring(0, 7)}
+                    </span>
+                    {' • '}
+                    {repoSummary.firstCommit.author}
+                    {' • '}
+                    {new Date(repoSummary.firstCommit.date).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Remote */}
+            {repoSummary.remote && (
+              <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #30363d' }}>
+                <h4 style={{ margin: '0 0 8px 0', color: '#c9d1d9', fontSize: '0.95em', fontWeight: '600' }}>
+                  Remote
+                </h4>
+                {repoSummary.remoteUrl ? (
+                  <a
+                    href={repoSummary.remoteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ 
+                      color: '#58a6ff', 
+                      fontSize: '0.9em', 
+                      wordBreak: 'break-all',
+                      textDecoration: 'none'
+                    }}
+                    onMouseEnter={(e) => e.target.style.textDecoration = 'underline'}
+                    onMouseLeave={(e) => e.target.style.textDecoration = 'none'}
+                  >
+                    {repoSummary.remote}
+                  </a>
+                ) : (
+                  <div style={{ color: '#58a6ff', fontSize: '0.9em', wordBreak: 'break-all' }}>
+                    {repoSummary.remote}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Last Commit */}
+            {repoSummary.lastCommit && (
+              <div style={{ marginBottom: '16px' }}>
+                <h4 style={{ margin: '0 0 8px 0', color: '#c9d1d9', fontSize: '0.95em', fontWeight: '600' }}>
+                  Last Commit
+                </h4>
+                <div style={{ fontSize: '0.9em', color: '#8b949e' }}>
+                  <div style={{ color: '#c9d1d9', marginBottom: '4px' }}>{repoSummary.lastCommit.message}</div>
+                  <div style={{ fontSize: '0.85em', marginTop: '4px' }}>
+                    <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace', color: '#58a6ff' }}>
+                      {repoSummary.lastCommit.hash.substring(0, 7)}
+                    </span>
+                    {' • '}
+                    {repoSummary.lastCommit.author}
+                    {' • '}
+                    {new Date(repoSummary.lastCommit.date).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

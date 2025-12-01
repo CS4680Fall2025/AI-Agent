@@ -114,6 +114,38 @@ class GitHelper:
             return log_output
         return None
 
+    def get_branch_info(self):
+        """Get current branch info including upstream"""
+        # Use --show-current which works better for unborn branches
+        current_branch = self.run_command("git branch --show-current")
+        if not current_branch:
+             # Fallback
+             current_branch = self.run_command("git rev-parse --abbrev-ref HEAD")
+             
+        if not current_branch:
+            return None
+            
+        # Check for upstream
+        # If branch is unborn (no commits), it can't have upstream
+        try:
+            upstream = self.run_command(f"git rev-parse --abbrev-ref {current_branch}@{{u}}", strip=True)
+        except:
+            upstream = None
+            
+        return {
+            "branch": current_branch,
+            "upstream": upstream,
+            "is_tracking": upstream is not None
+        }
+
+    def publish_branch(self, branch_name):
+        """Publish branch to remote (git push -u)"""
+        print(f"Publishing branch {branch_name}...")
+        if self.run_command(f"git push -u origin {branch_name}") is not None:
+            print(f"Successfully published {branch_name}.")
+            return True
+        return False
+
 class DSLExecutor:
     def __init__(self, helper):
         self.helper = helper

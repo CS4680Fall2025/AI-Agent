@@ -37,7 +37,8 @@ function GitControls({ repoPath, onActionComplete, lastUpdated }) {
             setCurrentBranch(branchRes.data.branch || '')
             setBranches({
                 local: branchesRes.data.local || [],
-                remote: branchesRes.data.remote || []
+                remote: branchesRes.data.remote || [],
+                is_tracking: branchRes.data.is_tracking // Store tracking status
             })
         } catch (err) {
             console.error('Failed to fetch branch info:', err)
@@ -87,8 +88,12 @@ function GitControls({ repoPath, onActionComplete, lastUpdated }) {
         setLoading(true)
         setError(null)
         try {
-            await axios.post(`${API_URL}/push`)
+            // If not tracking, we need to publish
+            const isPublishing = !branches.is_tracking
+            await axios.post(`${API_URL}/push`, { publish: isPublishing })
             await fetchCommitCount()
+            // Refresh branch info to update tracking status
+            await fetchBranchInfo()
             if (onActionComplete) onActionComplete()
         } catch (err) {
             setError(err.response?.data?.error || 'Push failed')
@@ -140,9 +145,9 @@ function GitControls({ repoPath, onActionComplete, lastUpdated }) {
         setCreatingBranch(true)
         setError(null)
         try {
-            const res = await axios.post(`${API_URL}/branch/create`, { 
+            const res = await axios.post(`${API_URL}/branch/create`, {
                 branch: newBranchName.trim(),
-                switch: true 
+                switch: true
             })
             setCurrentBranch(res.data.branch || newBranchName.trim())
             setNewBranchName('')
@@ -209,7 +214,7 @@ function GitControls({ repoPath, onActionComplete, lastUpdated }) {
                             >
                                 +
                             </button>
-                            
+
                             {/* Branch Selector Dropdown */}
                             {showBranchSelector && (
                                 <div style={{
@@ -314,7 +319,7 @@ function GitControls({ repoPath, onActionComplete, lastUpdated }) {
                             )}
                         </div>
                     </div>
-                    
+
                     {/* Create Branch Input */}
                     {showCreateBranch && (
                         <form onSubmit={handleCreateBranch} style={{ marginTop: '8px', display: 'flex', gap: '4px' }}>
@@ -365,8 +370,26 @@ function GitControls({ repoPath, onActionComplete, lastUpdated }) {
                             placeholder="Commit message..."
                             value={commitMessage}
                             onChange={(e) => setCommitMessage(e.target.value)}
-                            style={{ flex: 1 }}
+                            onKeyDown={(e) => {
+                                // Prevent form submission on Enter if input is empty
+                                if (e.key === 'Enter' && !commitMessage.trim()) {
+                                    e.preventDefault()
+                                }
+                            }}
+                            style={{ 
+                                flex: 1,
+                                padding: '5px 12px',
+                                background: '#0d1117',
+                                border: '1px solid #30363d',
+                                borderRadius: '6px',
+                                color: '#c9d1d9',
+                                fontSize: '14px',
+                                outline: 'none',
+                                pointerEvents: 'auto'
+                            }}
                             disabled={loading}
+                            autoFocus={false}
+                            readOnly={false}
                         />
                         <button
                             type="submit"
@@ -381,10 +404,14 @@ function GitControls({ repoPath, onActionComplete, lastUpdated }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
                     <button
                         onClick={handlePush}
-                        disabled={loading || (commitStats.unpushed !== null && commitStats.unpushed === 0)}
+                        disabled={loading || (commitStats.unpushed !== null && commitStats.unpushed === 0 && branches.is_tracking)}
                         style={{ flex: 1 }}
                     >
-                        Push Changes {commitStats.unpushed !== null && commitStats.unpushed > 0 && `(${commitStats.unpushed})`}
+                        {branches.is_tracking ? (
+                            `Push Changes ${commitStats.unpushed !== null && commitStats.unpushed > 0 ? `(${commitStats.unpushed})` : ''}`
+                        ) : (
+                            'Publish Branch'
+                        )}
                     </button>
                     <button
                         onClick={handlePull}
