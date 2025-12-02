@@ -223,3 +223,13 @@ footer {
     border-top: 1px solid var(--border-color);
     font-size: 0.9rem;
 }
+
+.cta-group {
+    position: relative;
+    z-index: 20;
+}
+
+.hero-image {
+    position: relative;
+    z-index: 1;
+}
