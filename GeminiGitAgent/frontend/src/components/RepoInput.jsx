@@ -176,15 +176,24 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
 
     const handleBrowse = async () => {
         try {
-            // We use window.require to access electron in the renderer process
-            // when nodeIntegration is enabled
-            const electron = window.require('electron')
-            const selectedPath = await electron.ipcRenderer.invoke('select-dirs')
-            if (selectedPath) {
-                setPath(selectedPath)
+            // Check if we're in Electron
+            if (typeof window !== 'undefined' && window.require) {
+                const electron = window.require('electron')
+                const selectedPath = await electron.ipcRenderer.invoke('select-dirs')
+                if (selectedPath) {
+                    setPath(selectedPath)
+                }
+            } else {
+                // Fallback for browser: prompt user to enter path manually
+                const manualPath = prompt('Please enter the full path to your repository:')
+                if (manualPath && manualPath.trim()) {
+                    setPath(manualPath.trim())
+                }
             }
         } catch (err) {
             console.error('Failed to open directory dialog:', err)
+            // Show user-friendly error
+            alert(`Failed to open directory browser: ${err.message}\n\nPlease enter the repository path manually in the text field above.`)
         }
     }
 
@@ -282,7 +291,20 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                                     color: '#c9d1d9'
                                 }}
                             />
-                            <button type="button" onClick={handleBrowse} style={{ padding: '0 20px', fontSize: '1em' }}>Browse</button>
+                            <button 
+                                type="button" 
+                                onClick={handleBrowse} 
+                                style={{ 
+                                    padding: '0 20px', 
+                                    fontSize: '1em',
+                                    cursor: 'pointer',
+                                    pointerEvents: 'auto',
+                                    zIndex: 10,
+                                    position: 'relative'
+                                }}
+                            >
+                                Browse
+                            </button>
                             <button type="submit" className="primary" style={{ padding: '0 24px', fontSize: '1em' }}>Set Repository</button>
                         </form>
 
