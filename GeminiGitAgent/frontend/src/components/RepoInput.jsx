@@ -23,9 +23,7 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
     const [githubToken, setGithubToken] = useState('')
     const [loadingGithubToken, setLoadingGithubToken] = useState(false)
     const [savingGithubToken, setSavingGithubToken] = useState(false)
-    const [geminiKey, setGeminiKey] = useState('')
-    const [loadingGeminiKey, setLoadingGeminiKey] = useState(false)
-    const [savingGeminiKey, setSavingGeminiKey] = useState(false)
+
     const [showClonePanel, setShowClonePanel] = useState(false)
     const [githubRepos, setGithubRepos] = useState({})
     const [loadingGithubRepos, setLoadingGithubRepos] = useState(false)
@@ -57,30 +55,7 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
         }
     }
 
-    const fetchGeminiKey = async () => {
-        setLoadingGeminiKey(true)
-        try {
-            const res = await axios.get(`${API_URL}/config/gemini-key`)
-            setGeminiKey(res.data.gemini_key || '')
-        } catch (err) {
-            console.error('Failed to fetch Gemini key:', err)
-        } finally {
-            setLoadingGeminiKey(false)
-        }
-    }
 
-    const saveGeminiKey = async () => {
-        setSavingGeminiKey(true)
-        try {
-            await axios.post(`${API_URL}/config/gemini-key`, { gemini_key: geminiKey })
-            alert('Gemini API key saved!')
-        } catch (err) {
-            console.error('Failed to save Gemini key:', err)
-            alert(err.response?.data?.error || 'Failed to save Gemini API key')
-        } finally {
-            setSavingGeminiKey(false)
-        }
-    }
 
     const fetchGithubRepos = async () => {
         setLoadingGithubRepos(true)
@@ -256,14 +231,18 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
         fetchGithubPath()
         // Fetch GitHub token
         fetchGithubToken()
-        // Fetch Gemini key
-        fetchGeminiKey()
+
     }, [])
 
     return (
-        <div className="card">
+        <div className="card" style={{
+            flex: !currentPath ? 1 : undefined,
+            display: 'flex',
+            flexDirection: 'column',
+            marginBottom: 0
+        }}>
             <div className="card-header">Repository Settings</div>
-            <div className="card-body">
+            <div className="card-body" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                 {currentPath ? (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
@@ -275,20 +254,39 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                         </div>
                     </div>
                 ) : (
-                    <div>
-                        <form onSubmit={handleSubmit} className="input-group" style={{ marginBottom: '1rem' }}>
+                    <div style={{
+                        flex: 1,
+                        width: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        gap: '20px'
+                    }}>
+                        <div style={{ fontSize: '1.2em', color: '#c9d1d9', marginBottom: '20px' }}>
+                            Welcome to Gemini Git Agent
+                        </div>
+                        <form onSubmit={handleSubmit} className="input-group" style={{ width: '100%', maxWidth: '800px', display: 'flex', gap: '10px' }}>
                             <input
                                 type="text"
                                 placeholder="Enter absolute path to repository..."
                                 value={path}
                                 onChange={(e) => setPath(e.target.value)}
-                                style={{ flex: 1 }}
+                                style={{
+                                    flex: 1,
+                                    padding: '12px 16px',
+                                    fontSize: '1.1em',
+                                    background: '#0d1117',
+                                    border: '1px solid #30363d',
+                                    borderRadius: '6px',
+                                    color: '#c9d1d9'
+                                }}
                             />
-                            <button type="button" onClick={handleBrowse} style={{ marginRight: '8px' }}>Browse</button>
-                            <button type="submit" className="primary">Set Repository</button>
+                            <button type="button" onClick={handleBrowse} style={{ padding: '0 20px', fontSize: '1em' }}>Browse</button>
+                            <button type="submit" className="primary" style={{ padding: '0 24px', fontSize: '1em' }}>Set Repository</button>
                         </form>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
                             <button
                                 type="button"
                                 onClick={() => {
@@ -507,7 +505,7 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                                     <div style={{ padding: '12px', textAlign: 'center', color: '#8b949e' }}>Scanning for repositories...</div>
                                 ) : Object.keys(reposByOrg).length > 0 ? (
                                     <div style={{
-                                        maxHeight: '400px',
+                                        maxHeight: '70vh',
                                         overflowY: 'auto',
                                         border: '1px solid #30363d',
                                         borderRadius: '6px',
@@ -744,48 +742,7 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                                         </div>
                                     </div>
 
-                                    {/* Gemini API Key */}
-                                    <div style={{ marginTop: '16px', borderTop: '1px solid #30363d', paddingTop: '16px' }}>
-                                        <div style={{ marginBottom: '4px', fontSize: '0.85em', color: '#c9d1d9', fontWeight: '600' }}>
-                                            Gemini API Key
-                                        </div>
-                                        <div style={{ marginBottom: '8px', fontSize: '0.8em', color: '#8b949e' }}>
-                                            Required for AI features (commit messages, chat).
-                                        </div>
-                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                            <input
-                                                type="password"
-                                                value={geminiKey}
-                                                onChange={(e) => setGeminiKey(e.target.value)}
-                                                style={{
-                                                    flex: 1,
-                                                    padding: '6px 12px',
-                                                    background: '#0d1117',
-                                                    border: '1px solid #30363d',
-                                                    borderRadius: '4px',
-                                                    color: '#c9d1d9',
-                                                    fontSize: '0.9em'
-                                                }}
-                                                disabled={loadingGeminiKey || savingGeminiKey}
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={saveGeminiKey}
-                                                disabled={loadingGeminiKey || savingGeminiKey || !geminiKey.trim()}
-                                                style={{
-                                                    padding: '6px 12px',
-                                                    fontSize: '0.9em',
-                                                    cursor: 'pointer',
-                                                    background: '#238636',
-                                                    border: 'none',
-                                                    borderRadius: '4px',
-                                                    color: 'white'
-                                                }}
-                                            >
-                                                {savingGeminiKey ? 'Saving...' : 'Save'}
-                                            </button>
-                                        </div>
-                                    </div>
+
                                 </div>
                             </div>
                         )}

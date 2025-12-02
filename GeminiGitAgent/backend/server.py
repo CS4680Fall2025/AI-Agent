@@ -14,12 +14,7 @@ from requests import RequestException
 load_dotenv(find_dotenv())
 
 # Load config file
-# Load config file
-# Use user home directory for config to ensure persistence and write permissions
-CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".gemini-git-agent")
-if not os.path.exists(CONFIG_DIR):
-    os.makedirs(CONFIG_DIR, exist_ok=True)
-CONFIG_PATH = os.path.join(CONFIG_DIR, "app_config.json")
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config/app_config.json")
 def load_config():
     """Load configuration from app_config.json"""
     try:
@@ -36,10 +31,10 @@ def save_config(config):
         os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
         with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
             json.dump(config, f, indent=2)
-        return True, None
+        return True
     except Exception as e:
         print(f"Error saving config file: {e}")
-        return False, str(e)
+        return False
 
 # Load initial config
 app_config = load_config()
@@ -67,15 +62,63 @@ cached_status_hash = None
 last_files_hash = None
 cached_files_list = None
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-2.0-flash"
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not GEMINI_API_KEY:
     print(
-        "Warning: GEMINI_API_KEY is not set. Gemini endpoints will return errors until it is configured.",
+        "Warning: GEMINI_API_KEY is not set. Gemini endpoints will fail until you set it.",
         file=sys.stderr,
     )
+
+
+def send_gemini_prompt(prompt_text, response_mime_type=None, temperature=0.6):
+    """
+    Send a prompt to Gemini and return the text response.
+    Raises RuntimeError when the API cannot be reached or is misconfigured.
+    """
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
+
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": prompt_text,
+                    }
+                ]
+            }
+        ],
+        "generationConfig": {
+            "temperature": temperature,
+        },
+    }
+
+    if response_mime_type:
+        payload["generationConfig"]["responseMimeType"] = response_mime_type
+
+    try:
+        response = requests.post(
+            GEMINI_URL,
+            params={"key": GEMINI_API_KEY},
+            json=payload,
+            timeout=45,
+        )
+        response.raise_for_status()
+    except RequestException as exc:
+        raise RuntimeError(f"Gemini API request failed: {exc}") from exc
+
+    data = response.json()
+    try:
+        return (
+            data["candidates"][0]["content"]["parts"][0]
+            .get("text", "")
+            .strip()
+        )
+    except (KeyError, IndexError, AttributeError) as exc:
+        raise RuntimeError("Gemini API returned an unexpected response.") from exc
 
 
 def get_helper():
@@ -138,40 +181,6 @@ def update_files_cache():
         print(f"Error in update_files_cache: {e}")
 
 
-def send_gemini_prompt(prompt_text):
-    """
-    Send a text-only prompt to the Gemini API and return the response body text.
-    Raises RuntimeError when the API cannot be reached or is misconfigured.
-    """
-    config = load_config()
-    api_key = config.get("gemini_api_key") or GEMINI_API_KEY
-
-    if not api_key:
-        raise RuntimeError("Gemini API key is not configured. Please set it in the settings or use the GEMINI_API_KEY environment variable.")
-
-    payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
-
-    try:
-        response = requests.post(
-            GEMINI_URL,
-            params={"key": api_key},
-            json=payload,
-            timeout=30,
-        )
-        response.raise_for_status()
-    except RequestException as exc:
-        raise RuntimeError(f"Gemini API request failed: {exc}") from exc
-
-    result = response.json()
-    text = (
-        result.get("candidates", [{}])[0]
-        .get("content", {})
-        .get("parts", [{}])[0]
-        .get("text", "")
-    )
-    return text.replace("```json", "").replace("```", "").strip()
-
-
 @app.route("/api/set-repo", methods=["POST"])
 def set_repo():
     global current_repo_path, git_helper, repo_watcher, last_status_hash, last_files_hash, cached_files_list
@@ -199,190 +208,6 @@ def set_repo():
     update_files_cache()
 
     return jsonify({"message": "Repository set", "path": path})
-
-
-@app.route("/api/config/github-path", methods=["GET"])
-def get_github_path():
-    """Get the configured GitHub path."""
-    config = load_config()
-    return jsonify({"github_path": config.get("github_path", "")})
-
-
-@app.route("/api/config/github-path", methods=["POST"])
-def set_github_path():
-    """Set the GitHub path configuration."""
-    data = request.json or {}
-    github_path = data.get("github_path")
-    
-    if github_path is None:
-        return jsonify({"error": "github_path is required"}), 400
-        
-    config = load_config()
-    config["github_path"] = github_path
-    
-    success, error = save_config(config)
-    if success:
-        return jsonify({"message": "GitHub path saved", "github_path": github_path})
-    else:
-        return jsonify({"error": f"Failed to save configuration: {error}"}), 500
-
-
-@app.route("/api/config/github-token", methods=["GET"])
-def get_github_token():
-    """Get the configured GitHub token."""
-    config = load_config()
-    return jsonify({"github_token": config.get("github_token", "")})
-
-
-@app.route("/api/config/github-token", methods=["POST"])
-def set_github_token():
-    """Set the GitHub token configuration."""
-    data = request.json or {}
-    github_token = data.get("github_token")
-    
-    if github_token is None:
-        return jsonify({"error": "github_token is required"}), 400
-        
-    config = load_config()
-    config["github_token"] = github_token
-    
-    success, error = save_config(config)
-    if success:
-        return jsonify({"message": "GitHub token saved"})
-    else:
-        return jsonify({"error": f"Failed to save configuration: {error}"}), 500
-
-
-@app.route("/api/config/gemini-key", methods=["GET"])
-def get_gemini_key():
-    """Get the configured Gemini API key."""
-    config = load_config()
-    return jsonify({"gemini_key": config.get("gemini_api_key", "")})
-
-
-@app.route("/api/config/gemini-key", methods=["POST"])
-def set_gemini_key():
-    """Set the Gemini API key configuration."""
-    data = request.json or {}
-    gemini_key = data.get("gemini_key")
-    
-    if gemini_key is None:
-        return jsonify({"error": "gemini_key is required"}), 400
-        
-    config = load_config()
-    config["gemini_api_key"] = gemini_key
-    
-    success, error = save_config(config)
-    if success:
-        return jsonify({"message": "Gemini API key saved"})
-    else:
-        return jsonify({"error": f"Failed to save configuration: {error}"}), 500
-
-
-@app.route("/api/github/repos", methods=["GET"])
-def list_github_repos():
-    """Fetch repositories from GitHub using the configured token."""
-    config = load_config()
-    token = config.get("github_token")
-    
-    if not token:
-        return jsonify({"error": "GitHub token not configured"}), 400
-        
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    
-    try:
-        # Fetch user repos
-        repos = []
-        page = 1
-        while True:
-            res = requests.get(
-                f"https://api.github.com/user/repos?per_page=100&page={page}&sort=updated",
-                headers=headers
-            )
-            res.raise_for_status()
-            data = res.json()
-            if not data:
-                break
-            repos.extend(data)
-            if len(data) < 100:
-                break
-            page += 1
-            
-        # Group by organization/owner
-        by_org = {}
-        for repo in repos:
-            owner = repo["owner"]["login"]
-            if owner not in by_org:
-                by_org[owner] = []
-            
-            by_org[owner].append({
-                "name": repo["name"],
-                "full_name": repo["full_name"],
-                "clone_url": repo["clone_url"],
-                "private": repo["private"],
-                "description": repo["description"],
-                "updated_at": repo["updated_at"]
-            })
-            
-        return jsonify({"repos": by_org})
-        
-    except requests.exceptions.RequestException as e:
-        return jsonify({"error": f"Failed to fetch repositories: {str(e)}"}), 500
-
-
-@app.route("/api/github/clone", methods=["POST"])
-def clone_github_repo():
-    """Clone a repository from GitHub."""
-    data = request.json or {}
-    repo_url = data.get("repo_url")
-    target_name = data.get("target_name")
-    
-    if not repo_url:
-        return jsonify({"error": "repo_url is required"}), 400
-        
-    config = load_config()
-    github_path = config.get("github_path")
-    token = config.get("github_token")
-    
-    if not github_path:
-        return jsonify({"error": "GitHub path not configured"}), 400
-        
-    if not os.path.exists(github_path):
-        return jsonify({"error": f"GitHub path does not exist: {github_path}"}), 400
-        
-    # Inject token into URL for authentication if provided
-    auth_url = repo_url
-    if token and "github.com" in repo_url:
-        auth_url = repo_url.replace("https://", f"https://{token}@")
-        
-    try:
-        # Determine target directory
-        if not target_name:
-            target_name = repo_url.split("/")[-1].replace(".git", "")
-            
-        target_path = os.path.join(github_path, target_name)
-        
-        if os.path.exists(target_path):
-            return jsonify({"error": f"Target directory already exists: {target_name}"}), 400
-            
-        # Run git clone
-        subprocess.check_call(
-            ["git", "clone", auth_url, target_path],
-            cwd=github_path
-        )
-        
-        return jsonify({
-            "message": f"Successfully cloned {target_name}",
-            "path": target_path
-        })
-        
-    except subprocess.CalledProcessError as e:
-        return jsonify({"error": f"Clone failed: {e}"}), 500
-    except Exception as e:
-        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
 
 @app.route("/api/status", methods=["GET"])
@@ -464,30 +289,29 @@ def poll_changes():
 
     if should_analyze:
         prompt = f"""
-        You are a Git Assistant. Here is the current `git status -s` output of a repository:
+You are a Git Assistant. Here is the current `git status -s` output of a repository:
 
-        {status_output}
+{status_output}
 
-        1. Provide a concise summary of what has changed.
-        2. Generate a DSL script to commit these changes. The DSL supports:
-           - `cd <path>`
-           - `repo`
-           - `status`
-           - `commit "<message>"`
-           - `push "<message>" (optional message, if provided will commit before pushing)`
-           - `pull`
-           - `deploy "<command>"`
+1. Provide a concise summary of what has changed.
+2. Generate a DSL script to commit these changes. The DSL supports:
+   - `cd <path>`
+   - `repo`
+   - `status`
+   - `commit "<message>"`
+   - `push "<message>" (optional message, if provided will commit before pushing)`
+   - `pull`
+   - `deploy "<command>"`
 
-        Return the response in JSON format with keys: "summary" and "dsl".
-        Example JSON:
-        {{
-            "summary": "Modified login page and added new icon.",
-            "dsl": "commit \\"Update login page\\""
-        }}
-        """
+Return JSON with keys "summary" and "dsl".
+"""
 
         try:
-            text = send_gemini_prompt(prompt)
+            text = send_gemini_prompt(
+                prompt,
+                response_mime_type="application/json",
+                temperature=0.3,
+            )
             try:
                 parsed = json.loads(text)
                 summary = parsed.get("summary")
@@ -497,6 +321,7 @@ def poll_changes():
                 dsl_suggestion = None
         except RuntimeError as exc:
             summary = str(exc)
+            dsl_suggestion = None
 
     return jsonify(
         {
@@ -526,45 +351,50 @@ def chat():
 
     try:
         prompt = f"""
-        You are a helpful Git Assistant.
+You are a helpful Git Assistant.
 
-        Current Git Status:
-        {status_output}
+Current Git Status:
+{status_output}
 
-        Recent Commit Log:
-        {log_output}
+Recent Commit Log:
+{log_output}
 
-        User Message: "{user_message}"
+User Message: "{user_message}"
 
-        1. Respond to the user's message in a helpful way.
-        2. If the user asks to perform a git operation (like commit, push, etc.), generate a DSL script to do it.
+1. Respond to the user's message helpfully.
+2. If a git action is needed, propose a DSL script using:
+   - `cd <path>`
+   - `repo`
+   - `status`
+   - `commit "<message>"`
+   - `push "<message>"`
+   - `pull`
+   - `deploy "<command>"`
+   - `undo`
+   - `log <limit>`
 
-        The DSL supports:
-           - `cd <path>`
-           - `repo`
-           - `status`
-           - `commit "<message>"`
-           - `push "<message>"`
-           - `pull`
-           - `deploy "<command>"`
-           - `undo`
-           - `log <limit>`
+Return JSON:
+{{
+  "response": "...",
+  "dsl": "commit \\"message\\"" (or null)
+}}
+"""
 
-        Return JSON format:
-        {{
-            "response": "Sure, I can help with that...",
-            "dsl": "commit \\"message\\"" (optional, null if no action needed)
-        }}
-        """
-
-        text = send_gemini_prompt(prompt)
+        text = send_gemini_prompt(
+            prompt,
+            response_mime_type="application/json",
+            temperature=0.4,
+        )
         try:
             parsed = json.loads(text)
-            return jsonify(parsed)
+            return jsonify(
+                {
+                    "response": parsed.get("response", "No response received."),
+                    "dsl": parsed.get("dsl"),
+                }
+            )
         except json.JSONDecodeError:
-            # Fallback if JSON parsing fails
             return jsonify({"response": text, "dsl": None})
-
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 500
 
@@ -603,21 +433,14 @@ def execute_dsl():
             os.remove(temp_file)
 
 
-@app.route("/api/commits", methods=["GET"])
-def get_commit_count():
-    helper = get_helper()
-    if not helper:
-        return jsonify({"error": "Repository not set"}), 400
 
+def _get_commit_stats(helper):
+    """Helper to get commit statistics."""
     total_count = helper.run_command("git rev-list --count HEAD")
     if total_count is None:
-        return jsonify({"total": 0, "unpushed": 0})
+        return {"total": 0, "unpushed": 0, "behind": 0}
 
     # Use git status -sb to get ahead/behind info
-    # Output formats:
-    # ## main...origin/main [ahead 1]
-    # ## main...origin/main [ahead 1, behind 1]
-    # ## main (no upstream)
     status_sb = helper.run_command("git status -sb")
     unpushed_count = 0
     behind_count = 0
@@ -638,19 +461,25 @@ def get_commit_count():
             match_behind = re.search(r"behind (\d+)", first_line)
             if match_behind:
                 behind_count = int(match_behind.group(1))
-
+    
     try:
-        return jsonify(
-            {
-                "total": int(total_count.strip()),
-                "unpushed": int(unpushed_count)
-                if isinstance(unpushed_count, (int, str))
-                else 0,
-                "behind": int(behind_count),
-            }
-        )
+        return {
+            "total": int(total_count.strip()),
+            "unpushed": int(unpushed_count) if isinstance(unpushed_count, (int, str)) else 0,
+            "behind": int(behind_count)
+        }
     except ValueError:
-        return jsonify({"error": "Could not parse commit count"}), 500
+        return {"total": 0, "unpushed": 0, "behind": 0}
+
+
+@app.route("/api/commits", methods=["GET"])
+def get_commit_count():
+    helper = get_helper()
+    if not helper:
+        return jsonify({"error": "Repository not set"}), 400
+
+    stats = _get_commit_stats(helper)
+    return jsonify(stats)
 
 
 @app.route("/api/commit", methods=["POST"])
@@ -689,13 +518,21 @@ def push_changes():
              return jsonify({"error": "Could not determine current branch"}), 500
         
         if helper.publish_branch(info["branch"]):
-             return jsonify({"message": "Branch published successfully"})
+             # Fetch latest stats
+             helper.run_command("git fetch")
+             stats = _get_commit_stats(helper)
+             return jsonify({"message": "Branch published successfully", "stats": stats})
         else:
              return jsonify({"error": "Failed to publish branch"}), 500
     else:
         try:
-            helper.push_changes()
-            return jsonify({"message": "Push successful"})
+            if helper.push_changes():
+                # Ensure we have latest info
+                helper.run_command("git fetch")
+                stats = _get_commit_stats(helper)
+                return jsonify({"message": "Push successful", "stats": stats})
+            else:
+                return jsonify({"error": "Failed to push changes to remote"}), 500
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
@@ -1195,6 +1032,35 @@ def github_path_config():
             return jsonify({"error": "Failed to save configuration"}), 500
 
 
+@app.route("/api/config/github-token", methods=["GET", "POST"])
+def github_token_config():
+    """Get or set the GitHub token configuration."""
+    global app_config
+    
+    if request.method == "GET":
+        # Reload config to get latest
+        app_config = load_config()
+        github_token = app_config.get("github_token", "")
+        return jsonify({"github_token": github_token})
+    
+    elif request.method == "POST":
+        data = request.json or {}
+        github_token = data.get("github_token", "").strip()
+        
+        if not github_token:
+            return jsonify({"error": "github_token is required"}), 400
+        
+        # Reload config first to get latest
+        app_config = load_config()
+        # Update config
+        app_config["github_token"] = github_token
+        if save_config(app_config):
+            print("GitHub token updated")
+            return jsonify({"message": "GitHub token saved"})
+        else:
+            return jsonify({"error": "Failed to save configuration"}), 500
+
+
 @app.route("/api/repos", methods=["GET"])
 def list_repositories():
     """Scan for all git repositories in common locations and group by organization."""
@@ -1595,35 +1461,25 @@ def get_repo_summary():
                 if file_extensions:
                     file_types = ", ".join([f"{ext} ({count})" for ext, count in sorted(file_extensions.items(), key=lambda x: x[1], reverse=True)[:5]])
             
-            # Create prompt for Gemini
-            prompt = f"""Analyze this Git repository and provide a comprehensive, professional description of what it is and what it does.
-
+            repo_context = f"""
 Repository Name: {summary["name"]}
 
-Top-level files and directories:
+Top-level:
 {chr(10).join(top_level_items[:15]) if top_level_items else "No files found"}
 
-File types found:
+File types:
 {file_types}
 
-Recent commit messages:
+Recent commits:
 {recent_commits[:500] if recent_commits else "No commits"}
 
-README content (if available):
-{readme_content[:1000] if readme_content else "No README found"}
+README snippet:
+{readme_content[:500] if readme_content else "No README"}
+"""
 
-Please provide a clear, concise description (2-4 sentences) that explains:
-1. What this repository/project is
-2. Its main purpose or functionality
-3. Key technologies or features it uses
-4. What it's designed to accomplish
-
-Write in a professional, informative tone. Do not include markdown formatting, just plain text."""
-
-            # Generate description using Gemini
             try:
-                description = send_gemini_prompt(prompt)
-                if description and len(description.strip()) > 20:  # Ensure we got a meaningful response
+                description = send_gemini_prompt(repo_context, temperature=0.4)
+                if description and len(description.strip()) > 20:
                     summary["description"] = description.strip()
                 else:
                     summary["description"] = "Description generation failed. Repository information unavailable."
@@ -1847,46 +1703,201 @@ def generate_readme():
             try:
                 with open(readme_path, 'r', encoding='utf-8') as f:
                     existing_readme = f.read()[:1000] # Limit size
-            except:
+            except Exception:
                 pass
 
-        # Construct Prompt
+        # 4. Get primary language
+        language = None
+        if current_repo_path:
+            common_extensions = {
+                '.py': 'Python',
+                '.js': 'JavaScript',
+                '.ts': 'TypeScript',
+                '.java': 'Java',
+                '.cpp': 'C++',
+                '.c': 'C',
+                '.go': 'Go',
+                '.rs': 'Rust',
+                '.rb': 'Ruby',
+                '.php': 'PHP'
+            }
+            file_counts = {}
+            for root, dirs, files in os.walk(current_repo_path):
+                dirs[:] = [d for d in dirs if not d.startswith('.')]
+                for file in files:
+                    ext = os.path.splitext(file)[1].lower()
+                    if ext in common_extensions:
+                        file_counts[common_extensions[ext]] = file_counts.get(common_extensions[ext], 0) + 1
+            if file_counts:
+                language = max(file_counts.items(), key=lambda x: x[1])[0]
+
         prompt = f"""
-        You are an expert developer. Your task is to generate a comprehensive, professional README.md file for this project.
-        
-        Project Structure:
-        {structure_text}
-        
-        Recent Activity:
-        {recent_commits}
-        
-        Existing README (for context):
-        {existing_readme}
-        
-        Please generate a full README.md in Markdown format that includes:
-        1. Project Title and Description (infer from structure and commits)
-        2. Key Features
-        3. Installation Instructions (infer from file types, e.g., requirements.txt, package.json)
-        4. Usage Guide
-        5. Project Structure Overview
-        
-        Make it look professional and well-formatted. Return ONLY the markdown content, no code blocks or explanations.
-        """
+You are an expert developer. Generate a comprehensive README.md using the details below.
 
-        # Generate
-        readme_content = send_gemini_prompt(prompt)
-        
+Repository: {os.path.basename(current_repo_path)}
+
+File Structure:
+{structure_text}
+
+Recent Commits:
+{recent_commits}
+
+Primary Language: {language or "Unknown"}
+
+Existing README Snippet:
+{existing_readme}
+
+The README must include:
+- Title and description
+- Key features
+- Installation/setup steps
+- Usage examples
+- Configuration (if applicable)
+- Contributing guidelines
+- License information (if known)
+
+Return ONLY Markdown content (no code fences).
+"""
+
+        readme_content = send_gemini_prompt(prompt, temperature=0.4)
+
         if not readme_content:
-            return jsonify({"error": "Failed to generate content"}), 500
+            return jsonify({"error": "Failed to generate README content"}), 500
 
-        # Write to file
+        # Write README.md
         with open(readme_path, 'w', encoding='utf-8') as f:
             f.write(readme_content)
 
         return jsonify({"message": "README.md generated successfully", "content": readme_content})
 
-    except Exception as e:
+    except RuntimeError as e:
         return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"error": f"Failed to generate README: {str(e)}"}), 500
+
+
+
+@app.route("/api/github/repos", methods=["GET"])
+def list_github_repos():
+    """Fetch repositories from GitHub API."""
+    global app_config
+    
+    # Reload config
+    app_config = load_config()
+    token = app_config.get("github_token")
+    
+    if not token:
+        return jsonify({"error": "GitHub token not configured"}), 400
+        
+    try:
+        headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        
+        # Fetch user's repos (including private ones)
+        # Use per_page=100 to get more repos (pagination might be needed for very large accounts)
+        response = requests.get(
+            "https://api.github.com/user/repos?per_page=100&sort=updated",
+            headers=headers,
+            timeout=10
+        )
+        
+        if response.status_code == 401:
+            return jsonify({"error": "Invalid GitHub token"}), 401
+            
+        response.raise_for_status()
+        repos = response.json()
+        
+        # Group by organization/owner
+        repos_by_org = {}
+        
+        for repo in repos:
+            owner = repo["owner"]["login"]
+            if owner not in repos_by_org:
+                repos_by_org[owner] = []
+                
+            repos_by_org[owner].append({
+                "name": repo["name"],
+                "full_name": repo["full_name"],
+                "private": repo["private"],
+                "html_url": repo["html_url"],
+                "clone_url": repo["clone_url"],
+                "description": repo["description"],
+                "updated_at": repo["updated_at"]
+            })
+            
+        # Sort organizations
+        sorted_orgs = sorted(repos_by_org.keys(), key=str.lower)
+        
+        return jsonify({
+            "repos": {org: repos_by_org[org] for org in sorted_orgs}
+        })
+        
+    except requests.RequestException as e:
+        print(f"GitHub API error: {e}")
+        return jsonify({"error": f"Failed to fetch from GitHub: {str(e)}"}), 500
+    except Exception as e:
+        print(f"Error processing GitHub repos: {e}")
+        return jsonify({"error": f"Internal error: {str(e)}"}), 500
+
+
+@app.route("/api/github/clone", methods=["POST"])
+def clone_github_repo():
+    """Clone a repository from GitHub."""
+    global app_config
+    
+    data = request.json or {}
+    repo_url = data.get("repo_url")
+    
+    if not repo_url:
+        return jsonify({"error": "Repository URL required"}), 400
+        
+    # Reload config
+    app_config = load_config()
+    github_path = app_config.get("github_path")
+    
+    if not github_path:
+        # Fallback to default location if not set
+        github_path = os.path.join(os.path.expanduser("~"), "Documents", "GitHub")
+        
+    # Ensure directory exists
+    if not os.path.exists(github_path):
+        try:
+            os.makedirs(github_path)
+        except Exception as e:
+            return jsonify({"error": f"Failed to create directory {github_path}: {str(e)}"}), 500
+            
+    try:
+        # Extract repo name from URL
+        # e.g. https://github.com/owner/repo.git -> repo
+        repo_name = repo_url.split("/")[-1]
+        if repo_name.endswith(".git"):
+            repo_name = repo_name[:-4]
+            
+        target_path = os.path.join(github_path, repo_name)
+        
+        if os.path.exists(target_path):
+            return jsonify({"error": f"Directory already exists: {target_path}"}), 400
+            
+        # Run git clone
+        result = subprocess.run(
+            ["git", "clone", repo_url, target_path],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+        
+        if result.returncode != 0:
+            return jsonify({"error": f"Git clone failed: {result.stderr}"}), 500
+            
+        return jsonify({
+            "message": "Repository cloned successfully",
+            "path": target_path
+        })
+        
+    except Exception as e:
+        return jsonify({"error": f"Failed to clone repository: {str(e)}"}), 500
 
 
 if __name__ == "__main__":

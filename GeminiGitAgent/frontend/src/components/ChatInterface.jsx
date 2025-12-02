@@ -47,7 +47,7 @@ function ChatInterface({ onExecuteDSL }) {
     }
 
     return (
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#161b22' }}>
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#161b22', pointerEvents: 'auto' }}>
             <div style={{
                 background: '#21262d',
                 padding: '16px',
@@ -55,11 +55,12 @@ function ChatInterface({ onExecuteDSL }) {
                 fontWeight: 600,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between'
+                justifyContent: 'space-between',
+                pointerEvents: 'auto'
             }}>
                 <span>Chat with Gemini</span>
             </div>
-            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px' }}>
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px', pointerEvents: 'auto' }}>
                 {messages.map((msg, idx) => (
                     <div key={idx} style={{
                         alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
@@ -67,7 +68,8 @@ function ChatInterface({ onExecuteDSL }) {
                         backgroundColor: msg.role === 'user' ? '#1f6feb' : '#21262d',
                         padding: '8px 12px',
                         borderRadius: '12px',
-                        color: 'white'
+                        color: 'white',
+                        pointerEvents: 'auto'
                     }}>
                         <div>{msg.content}</div>
                         {msg.dsl && (
@@ -88,16 +90,31 @@ function ChatInterface({ onExecuteDSL }) {
                 {loading && <div style={{ alignSelf: 'flex-start', color: '#8b949e', fontSize: '12px' }}>Gemini is thinking...</div>}
                 <div ref={messagesEndRef} />
             </div>
-            <div style={{ padding: '12px', borderTop: '1px solid #30363d' }}>
-                <form onSubmit={sendMessage} style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ padding: '12px', borderTop: '1px solid #30363d', pointerEvents: 'auto', position: 'relative', zIndex: 10001 }}>
+                <form onSubmit={sendMessage} style={{ display: 'flex', gap: '8px', pointerEvents: 'auto' }}>
                     <input
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
+                        onFocus={(e) => e.target.select()}
                         placeholder="Ask me to commit changes, check status..."
-                        style={{ flex: 1 }}
+                        autoFocus={!loading}
+                        disabled={loading}
+                        readOnly={false}
+                        style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            background: '#0d1117',
+                            border: '1px solid #30363d',
+                            borderRadius: '6px',
+                            color: '#c9d1d9',
+                            outline: 'none',
+                            pointerEvents: 'auto',
+                            zIndex: 10002,
+                            position: 'relative'
+                        }}
                     />
-                    <button type="submit" disabled={loading} className="primary">Send</button>
+                    <button type="submit" disabled={loading} className="primary" style={{ pointerEvents: 'auto', zIndex: 10002 }}>Send</button>
                 </form>
             </div>
         </div>

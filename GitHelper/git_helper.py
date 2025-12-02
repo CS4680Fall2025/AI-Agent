@@ -64,6 +64,8 @@ class GitHelper:
         print("Pushing to remote...")
         if self.run_command("git push") is not None:
             print("Successfully pushed changes.")
+            return True
+        return False
 
     def commit_changes(self, message="Auto-commit from GitHelper"):
         """Commit changes without pushing"""

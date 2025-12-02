@@ -90,10 +90,18 @@ function GitControls({ repoPath, onActionComplete, lastUpdated }) {
         try {
             // If not tracking, we need to publish
             const isPublishing = !branches.is_tracking
-            await axios.post(`${API_URL}/push`, { publish: isPublishing })
-            await fetchCommitCount()
+            const res = await axios.post(`${API_URL}/push`, { publish: isPublishing })
+
+            // Update stats immediately from response if available
+            if (res.data.stats) {
+                setCommitStats(res.data.stats)
+            } else {
+                await fetchCommitCount()
+            }
+
             // Refresh branch info to update tracking status
             await fetchBranchInfo()
+
             if (onActionComplete) onActionComplete()
         } catch (err) {
             setError(err.response?.data?.error || 'Push failed')
@@ -358,9 +366,6 @@ function GitControls({ repoPath, onActionComplete, lastUpdated }) {
                     <div>
                         <strong>Total Commits:</strong> {commitStats.total !== null ? commitStats.total : '...'}
                     </div>
-                    <div>
-                        <strong>Unpushed:</strong> {commitStats.unpushed !== null ? commitStats.unpushed : '...'}
-                    </div>
                 </div>
 
                 <form onSubmit={handleCommit} style={{ marginBottom: '12px' }}>
@@ -376,7 +381,7 @@ function GitControls({ repoPath, onActionComplete, lastUpdated }) {
                                     e.preventDefault()
                                 }
                             }}
-                            style={{ 
+                            style={{
                                 flex: 1,
                                 padding: '5px 12px',
                                 background: '#0d1117',
