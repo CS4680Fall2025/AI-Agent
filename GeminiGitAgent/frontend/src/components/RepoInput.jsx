@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
 
 const API_URL = 'http://127.0.0.1:5000/api'
@@ -29,6 +29,7 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
     const [loadingGithubRepos, setLoadingGithubRepos] = useState(false)
     const [expandedGithubOrgs, setExpandedGithubOrgs] = useState({})
     const [cloningRepo, setCloningRepo] = useState(null)
+    const folderInputRef = useRef(null)
 
     const fetchGithubToken = async () => {
         setLoadingGithubToken(true)
@@ -184,17 +185,82 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                     setPath(selectedPath)
                 }
             } else {
-                // Fallback for browser: prompt user to enter path manually
-                const manualPath = prompt('Please enter the full path to your repository:')
-                if (manualPath && manualPath.trim()) {
-                    setPath(manualPath.trim())
+                // Browser: Try File System Access API first (Chrome, Edge, Opera)
+                if ('showDirectoryPicker' in window) {
+                    try {
+                        const directoryHandle = await window.showDirectoryPicker()
+                        const dirName = directoryHandle.name
+                        
+                        // Try to get more info by reading the directory
+                        // Check if it's a git repository by looking for .git folder
+                        let isGitRepo = false
+                        try {
+                            for await (const entry of directoryHandle.values()) {
+                                if (entry.name === '.git' && entry.kind === 'directory') {
+                                    isGitRepo = true
+                                    break
+                                }
+                            }
+                        } catch (e) {
+                            // Can't read directory contents, that's okay
+                        }
+                        
+                        // Show helpful message
+                        const message = isGitRepo 
+                            ? `Selected Git repository: ${dirName}\n\nPlease enter the full path to this repository in the input field above.\nExample: C:\\Users\\YourName\\Projects\\${dirName}`
+                            : `Selected folder: ${dirName}\n\nPlease enter the full path to your repository in the input field above.\nExample: C:\\Users\\YourName\\Projects\\${dirName}`
+                        
+                        alert(message)
+                        
+                        // Store the directory name as a hint
+                        // User will need to enter the full path manually
+                        setPath('') // Clear to prompt user to enter full path
+                    } catch (err) {
+                        if (err.name !== 'AbortError') {
+                            console.error('Directory picker error:', err)
+                            // Fall back to hidden input method
+                            folderInputRef.current?.click()
+                        }
+                    }
+                } else {
+                    // Fallback: Use hidden file input with webkitdirectory
+                    folderInputRef.current?.click()
                 }
             }
         } catch (err) {
             console.error('Failed to open directory dialog:', err)
-            // Show user-friendly error
             alert(`Failed to open directory browser: ${err.message}\n\nPlease enter the repository path manually in the text field above.`)
         }
+    }
+
+    const handleFolderInputChange = (e) => {
+        const files = e.target.files
+        if (files && files.length > 0) {
+            // webkitdirectory gives relative paths, not absolute paths
+            // We can't get the full file system path for security reasons
+            const firstFile = files[0]
+            const relativePath = firstFile.webkitRelativePath || ''
+            
+            // Extract the root directory name from the relative path
+            // Format is usually "FolderName/subfolder/file.txt"
+            const rootDir = relativePath.split('/')[0] || relativePath.split('\\')[0]
+            
+            // Check if .git folder is present (indicates it's a git repo)
+            const hasGitFolder = Array.from(files).some(f => 
+                f.webkitRelativePath.includes('.git/') || f.webkitRelativePath.includes('.git\\')
+            )
+            
+            const message = hasGitFolder
+                ? `Selected Git repository folder: ${rootDir}\n\nFound ${files.length} files in this repository.\n\nFor security reasons, browsers don't provide full file system paths.\nPlease enter the full repository path manually in the input field above.\nExample: C:\\Users\\YourName\\Projects\\${rootDir}`
+                : `Selected folder: ${rootDir}\n\nFound ${files.length} files.\n\nFor security reasons, browsers don't provide full file system paths.\nPlease enter the full repository path manually in the input field above.\nExample: C:\\Users\\YourName\\Projects\\${rootDir}`
+            
+            alert(message)
+            
+            // Clear the input field to prompt user to enter full path
+            setPath('')
+        }
+        // Reset input so same folder can be selected again
+        e.target.value = ''
     }
 
     const getBasename = (fullPath) => {
@@ -307,6 +373,15 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                             </button>
                             <button type="submit" className="primary" style={{ padding: '0 24px', fontSize: '1em' }}>Set Repository</button>
                         </form>
+                        <input
+                            ref={folderInputRef}
+                            type="file"
+                            webkitdirectory=""
+                            directory=""
+                            multiple
+                            style={{ display: 'none' }}
+                            onChange={handleFolderInputChange}
+                        />
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
                             <button

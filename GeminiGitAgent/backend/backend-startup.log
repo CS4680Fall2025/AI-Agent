@@ -9,35 +9,3 @@ Press CTRL+C to quit
 [STDERR]  * Restarting with watchdog (windowsapi)
 [STDERR]  * Debugger is active!
 [STDERR]  * Debugger PIN: 480-665-344
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:30:01] "GET /api/config/github-path HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:30:01] "GET /api/config/github-token HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:30:01] "GET /api/config/github-path HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:30:01] "GET /api/config/github-token HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:30:02] "GET /api/repos HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:30:02] "GET /api/repos HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:30:03] "GET /api/config/github-path HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:30:11] "GET /api/config/github-token HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:30:11] "GET /api/config/github-path HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:30:11] "GET /api/config/github-path HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:30:11] "GET /api/config/github-token HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:30:12] "GET /api/repos HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:30:12] "GET /api/repos HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:31:02] "GET /api/config/github-path HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:31:03] "OPTIONS /api/config/github-path HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:31:03] "POST /api/config/github-path HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:31:07] "OPTIONS /api/config/github-token HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:31:07] "POST /api/config/github-token HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:31:12] "OPTIONS /api/set-repo HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:31:12] "POST /api/set-repo HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:31:12] "OPTIONS /api/poll HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:31:12] "GET /api/branch HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:31:12] "GET /api/commits HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:31:12] "POST /api/poll HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:31:12] "[STDERR] POST /api/poll HTTP/1.1[STDERR] " 415 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:31:12] "GET /api/branches HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:31:13] "GET /api/branch HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:31:13] "GET /api/commits HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:31:13] "GET /api/branches HTTP/1.1" 200 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:31:14] "POST /api/poll HTTP/1.1" 415 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:31:15] "POST /api/poll HTTP/1.1" 415 -
-[STDERR] 127.0.0.1 - - [02/Dec/2025 09:31:17] "POST /api/poll HTTP/1.1" 415 -
