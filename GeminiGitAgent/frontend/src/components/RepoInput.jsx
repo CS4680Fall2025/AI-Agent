@@ -23,6 +23,9 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
     const [githubToken, setGithubToken] = useState('')
     const [loadingGithubToken, setLoadingGithubToken] = useState(false)
     const [savingGithubToken, setSavingGithubToken] = useState(false)
+    const [geminiKey, setGeminiKey] = useState('')
+    const [loadingGeminiKey, setLoadingGeminiKey] = useState(false)
+    const [savingGeminiKey, setSavingGeminiKey] = useState(false)
     const [showClonePanel, setShowClonePanel] = useState(false)
     const [githubRepos, setGithubRepos] = useState({})
     const [loadingGithubRepos, setLoadingGithubRepos] = useState(false)
@@ -51,6 +54,31 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
             alert(err.response?.data?.error || 'Failed to save GitHub token')
         } finally {
             setSavingGithubToken(false)
+        }
+    }
+
+    const fetchGeminiKey = async () => {
+        setLoadingGeminiKey(true)
+        try {
+            const res = await axios.get(`${API_URL}/config/gemini-key`)
+            setGeminiKey(res.data.gemini_key || '')
+        } catch (err) {
+            console.error('Failed to fetch Gemini key:', err)
+        } finally {
+            setLoadingGeminiKey(false)
+        }
+    }
+
+    const saveGeminiKey = async () => {
+        setSavingGeminiKey(true)
+        try {
+            await axios.post(`${API_URL}/config/gemini-key`, { gemini_key: geminiKey })
+            alert('Gemini API key saved!')
+        } catch (err) {
+            console.error('Failed to save Gemini key:', err)
+            alert(err.response?.data?.error || 'Failed to save Gemini API key')
+        } finally {
+            setSavingGeminiKey(false)
         }
     }
 
@@ -228,6 +256,8 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
         fetchGithubPath()
         // Fetch GitHub token
         fetchGithubToken()
+        // Fetch Gemini key
+        fetchGeminiKey()
     }, [])
 
     return (
@@ -682,7 +712,6 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                             <input
                                                 type="password"
-                                                placeholder="ghp_..."
                                                 value={githubToken}
                                                 onChange={(e) => setGithubToken(e.target.value)}
                                                 style={{
@@ -711,6 +740,49 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                                                 }}
                                             >
                                                 {savingGithubToken ? 'Saving...' : 'Save'}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Gemini API Key */}
+                                    <div style={{ marginTop: '16px', borderTop: '1px solid #30363d', paddingTop: '16px' }}>
+                                        <div style={{ marginBottom: '4px', fontSize: '0.85em', color: '#c9d1d9', fontWeight: '600' }}>
+                                            Gemini API Key
+                                        </div>
+                                        <div style={{ marginBottom: '8px', fontSize: '0.8em', color: '#8b949e' }}>
+                                            Required for AI features (commit messages, chat).
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                            <input
+                                                type="password"
+                                                value={geminiKey}
+                                                onChange={(e) => setGeminiKey(e.target.value)}
+                                                style={{
+                                                    flex: 1,
+                                                    padding: '6px 12px',
+                                                    background: '#0d1117',
+                                                    border: '1px solid #30363d',
+                                                    borderRadius: '4px',
+                                                    color: '#c9d1d9',
+                                                    fontSize: '0.9em'
+                                                }}
+                                                disabled={loadingGeminiKey || savingGeminiKey}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={saveGeminiKey}
+                                                disabled={loadingGeminiKey || savingGeminiKey || !geminiKey.trim()}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    fontSize: '0.9em',
+                                                    cursor: 'pointer',
+                                                    background: '#238636',
+                                                    border: 'none',
+                                                    borderRadius: '4px',
+                                                    color: 'white'
+                                                }}
+                                            >
+                                                {savingGeminiKey ? 'Saving...' : 'Save'}
                                             </button>
                                         </div>
                                     </div>
@@ -782,9 +854,10 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                             </div>
                         )}
                     </div>
-                )}
-            </div>
-        </div>
+                )
+                }
+            </div >
+        </div >
     )
 }
 

@@ -23,19 +23,7 @@ if exist "%ROOT_DIR%.env" (
 :: Check if key was found in .env
 if not "%GEMINI_API_KEY%"=="" goto :check_model
 
-:: Prompt user
-echo.
-echo GEMINI_API_KEY is not configured.
-echo Please create a .env file in the root directory with GEMINI_API_KEY=your_key
-echo Or set the GEMINI_API_KEY environment variable.
-echo.
-set /p GEMINI_API_KEY=Enter your Gemini API key (for this session only):
-
-if "%GEMINI_API_KEY%"=="" (
-    echo No API key provided. Exiting...
-    pause
-    exit /b 1
-)
+:: Prompt user skipped - using in-app settings
 
 :check_model
 
@@ -50,6 +38,7 @@ if "%GEMINI_MODEL%"=="" (
 echo Using Gemini model: %GEMINI_MODEL%
 
 echo Starting Gemini Git Agent Desktop App...
+
 pushd "%ROOT_DIR%frontend"
 npm run electron:dev
 popd

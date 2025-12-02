@@ -59,7 +59,8 @@ function startBackend() {
   } else {
     // In development, use python script
     const backendPath = path.join(__dirname, '../../backend');
-    backendExecutable = 'python';
+    // Use the specific python path that has dependencies installed
+    backendExecutable = 'C:\\Users\\johns\\AppData\\Local\\Programs\\Python\\Python313\\python.exe';
     args = [path.join(backendPath, 'server.py')];
     cwd = backendPath;
     console.log('Starting development backend from:', backendPath);

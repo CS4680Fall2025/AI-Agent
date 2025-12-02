@@ -36,10 +36,10 @@ def save_config(config):
         os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
         with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
             json.dump(config, f, indent=2)
-        return True
+        return True, None
     except Exception as e:
         print(f"Error saving config file: {e}")
-        return False
+        return False, str(e)
 
 # Load initial config
 app_config = load_config()
@@ -143,15 +143,18 @@ def send_gemini_prompt(prompt_text):
     Send a text-only prompt to the Gemini API and return the response body text.
     Raises RuntimeError when the API cannot be reached or is misconfigured.
     """
-    if not GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
+    config = load_config()
+    api_key = config.get("gemini_api_key") or GEMINI_API_KEY
+
+    if not api_key:
+        raise RuntimeError("Gemini API key is not configured. Please set it in the settings or use the GEMINI_API_KEY environment variable.")
 
     payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
 
     try:
         response = requests.post(
             GEMINI_URL,
-            params={"key": GEMINI_API_KEY},
+            params={"key": api_key},
             json=payload,
             timeout=30,
         )
@@ -217,10 +220,11 @@ def set_github_path():
     config = load_config()
     config["github_path"] = github_path
     
-    if save_config(config):
+    success, error = save_config(config)
+    if success:
         return jsonify({"message": "GitHub path saved", "github_path": github_path})
     else:
-        return jsonify({"error": "Failed to save configuration"}), 500
+        return jsonify({"error": f"Failed to save configuration: {error}"}), 500
 
 
 @app.route("/api/config/github-token", methods=["GET"])
@@ -242,10 +246,37 @@ def set_github_token():
     config = load_config()
     config["github_token"] = github_token
     
-    if save_config(config):
+    success, error = save_config(config)
+    if success:
         return jsonify({"message": "GitHub token saved"})
     else:
-        return jsonify({"error": "Failed to save configuration"}), 500
+        return jsonify({"error": f"Failed to save configuration: {error}"}), 500
+
+
+@app.route("/api/config/gemini-key", methods=["GET"])
+def get_gemini_key():
+    """Get the configured Gemini API key."""
+    config = load_config()
+    return jsonify({"gemini_key": config.get("gemini_api_key", "")})
+
+
+@app.route("/api/config/gemini-key", methods=["POST"])
+def set_gemini_key():
+    """Set the Gemini API key configuration."""
+    data = request.json or {}
+    gemini_key = data.get("gemini_key")
+    
+    if gemini_key is None:
+        return jsonify({"error": "gemini_key is required"}), 400
+        
+    config = load_config()
+    config["gemini_api_key"] = gemini_key
+    
+    success, error = save_config(config)
+    if success:
+        return jsonify({"message": "Gemini API key saved"})
+    else:
+        return jsonify({"error": f"Failed to save configuration: {error}"}), 500
 
 
 @app.route("/api/github/repos", methods=["GET"])
