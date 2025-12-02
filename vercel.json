@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd GeminiGitAgent/frontend && npm run build",
+  "outputDirectory": "GeminiGitAgent/frontend/dist",
+  "installCommand": "cd GeminiGitAgent/frontend && npm install"
+}
+
