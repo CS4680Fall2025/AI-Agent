@@ -13,6 +13,37 @@ from requests import RequestException
 
 load_dotenv(find_dotenv())
 
+# Load config file
+# Load config file
+# Use user home directory for config to ensure persistence and write permissions
+CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".gemini-git-agent")
+if not os.path.exists(CONFIG_DIR):
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+CONFIG_PATH = os.path.join(CONFIG_DIR, "app_config.json")
+def load_config():
+    """Load configuration from app_config.json"""
+    try:
+        if os.path.exists(CONFIG_PATH):
+            with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"Warning: Could not load config file: {e}")
+    return {}
+
+def save_config(config):
+    """Save configuration to app_config.json"""
+    try:
+        os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
+        with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2)
+        return True
+    except Exception as e:
+        print(f"Error saving config file: {e}")
+        return False
+
+# Load initial config
+app_config = load_config()
+
 # Add GitHelper to path
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../GitHelper"))
 import importlib
@@ -165,6 +196,162 @@ def set_repo():
     update_files_cache()
 
     return jsonify({"message": "Repository set", "path": path})
+
+
+@app.route("/api/config/github-path", methods=["GET"])
+def get_github_path():
+    """Get the configured GitHub path."""
+    config = load_config()
+    return jsonify({"github_path": config.get("github_path", "")})
+
+
+@app.route("/api/config/github-path", methods=["POST"])
+def set_github_path():
+    """Set the GitHub path configuration."""
+    data = request.json or {}
+    github_path = data.get("github_path")
+    
+    if github_path is None:
+        return jsonify({"error": "github_path is required"}), 400
+        
+    config = load_config()
+    config["github_path"] = github_path
+    
+    if save_config(config):
+        return jsonify({"message": "GitHub path saved", "github_path": github_path})
+    else:
+        return jsonify({"error": "Failed to save configuration"}), 500
+
+
+@app.route("/api/config/github-token", methods=["GET"])
+def get_github_token():
+    """Get the configured GitHub token."""
+    config = load_config()
+    return jsonify({"github_token": config.get("github_token", "")})
+
+
+@app.route("/api/config/github-token", methods=["POST"])
+def set_github_token():
+    """Set the GitHub token configuration."""
+    data = request.json or {}
+    github_token = data.get("github_token")
+    
+    if github_token is None:
+        return jsonify({"error": "github_token is required"}), 400
+        
+    config = load_config()
+    config["github_token"] = github_token
+    
+    if save_config(config):
+        return jsonify({"message": "GitHub token saved"})
+    else:
+        return jsonify({"error": "Failed to save configuration"}), 500
+
+
+@app.route("/api/github/repos", methods=["GET"])
+def list_github_repos():
+    """Fetch repositories from GitHub using the configured token."""
+    config = load_config()
+    token = config.get("github_token")
+    
+    if not token:
+        return jsonify({"error": "GitHub token not configured"}), 400
+        
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    
+    try:
+        # Fetch user repos
+        repos = []
+        page = 1
+        while True:
+            res = requests.get(
+                f"https://api.github.com/user/repos?per_page=100&page={page}&sort=updated",
+                headers=headers
+            )
+            res.raise_for_status()
+            data = res.json()
+            if not data:
+                break
+            repos.extend(data)
+            if len(data) < 100:
+                break
+            page += 1
+            
+        # Group by organization/owner
+        by_org = {}
+        for repo in repos:
+            owner = repo["owner"]["login"]
+            if owner not in by_org:
+                by_org[owner] = []
+            
+            by_org[owner].append({
+                "name": repo["name"],
+                "full_name": repo["full_name"],
+                "clone_url": repo["clone_url"],
+                "private": repo["private"],
+                "description": repo["description"],
+                "updated_at": repo["updated_at"]
+            })
+            
+        return jsonify({"repos": by_org})
+        
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": f"Failed to fetch repositories: {str(e)}"}), 500
+
+
+@app.route("/api/github/clone", methods=["POST"])
+def clone_github_repo():
+    """Clone a repository from GitHub."""
+    data = request.json or {}
+    repo_url = data.get("repo_url")
+    target_name = data.get("target_name")
+    
+    if not repo_url:
+        return jsonify({"error": "repo_url is required"}), 400
+        
+    config = load_config()
+    github_path = config.get("github_path")
+    token = config.get("github_token")
+    
+    if not github_path:
+        return jsonify({"error": "GitHub path not configured"}), 400
+        
+    if not os.path.exists(github_path):
+        return jsonify({"error": f"GitHub path does not exist: {github_path}"}), 400
+        
+    # Inject token into URL for authentication if provided
+    auth_url = repo_url
+    if token and "github.com" in repo_url:
+        auth_url = repo_url.replace("https://", f"https://{token}@")
+        
+    try:
+        # Determine target directory
+        if not target_name:
+            target_name = repo_url.split("/")[-1].replace(".git", "")
+            
+        target_path = os.path.join(github_path, target_name)
+        
+        if os.path.exists(target_path):
+            return jsonify({"error": f"Target directory already exists: {target_name}"}), 400
+            
+        # Run git clone
+        subprocess.check_call(
+            ["git", "clone", auth_url, target_path],
+            cwd=github_path
+        )
+        
+        return jsonify({
+            "message": f"Successfully cloned {target_name}",
+            "path": target_path
+        })
+        
+    except subprocess.CalledProcessError as e:
+        return jsonify({"error": f"Clone failed: {e}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
 
 @app.route("/api/status", methods=["GET"])
@@ -940,20 +1127,82 @@ def revert_file():
         return jsonify({"error": f"Failed to revert file: {str(e)}"}), 500
 
 
+@app.route("/api/config/github-path", methods=["GET", "POST"])
+def github_path_config():
+    """Get or set the GitHub path configuration."""
+    global app_config
+    
+    if request.method == "GET":
+        # Reload config to get latest
+        app_config = load_config()
+        github_path = app_config.get("github_path", "")
+        return jsonify({"github_path": github_path})
+    
+    elif request.method == "POST":
+        data = request.json or {}
+        new_path = data.get("github_path", "").strip()
+        
+        if new_path:
+            # Normalize the path
+            new_path = os.path.normpath(new_path)
+            # Convert to absolute path
+            if not os.path.isabs(new_path):
+                new_path = os.path.abspath(new_path)
+            
+            # Validate path exists
+            if not os.path.exists(new_path):
+                return jsonify({"error": f"Path does not exist: {new_path}"}), 400
+            if not os.path.isdir(new_path):
+                return jsonify({"error": f"Path is not a directory: {new_path}"}), 400
+        
+        # Update config
+        app_config["github_path"] = new_path
+        if save_config(app_config):
+            print(f"GitHub path updated to: {new_path}")
+            return jsonify({"message": "GitHub path updated", "github_path": new_path})
+        else:
+            return jsonify({"error": "Failed to save configuration"}), 500
+
+
 @app.route("/api/repos", methods=["GET"])
 def list_repositories():
     """Scan for all git repositories in common locations and group by organization."""
+    global app_config
+    
+    # Reload config to get latest changes
+    app_config = load_config()
+    
     # Get user's home directory
     home_dir = os.path.expanduser("~")
     
+    # Get configured GitHub path from config
+    configured_github_path = app_config.get("github_path", "")
+    
+    # Normalize the path (handle Windows paths with backslashes)
+    if configured_github_path:
+        configured_github_path = os.path.normpath(configured_github_path)
+        configured_github_path = os.path.abspath(configured_github_path)
+    
     # Common repo locations - these are typically organization containers
-    potential_dirs = [
+    potential_dirs = []
+    
+    # Add configured GitHub path first if it exists
+    if configured_github_path and os.path.exists(configured_github_path) and os.path.isdir(configured_github_path):
+        potential_dirs.append(configured_github_path)
+        print(f"Scanning configured GitHub path: {configured_github_path}")
+    
+    # Add other common locations
+    potential_dirs.extend([
         os.path.join(home_dir, "Documents", "GitHub"),
         os.path.join(home_dir, "Documents"),
         os.path.join(home_dir, "source"),
         os.path.join(home_dir, "repos"),
         os.path.join(home_dir, "Projects"),
-    ]
+    ])
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    potential_dirs = [d for d in potential_dirs if d not in seen and not seen.add(d)]
     
     repos = []
     scanned_dirs = set()
@@ -1041,7 +1290,10 @@ def list_repositories():
         if base_dirs is None:
             base_dirs = [os.path.abspath(d) for d in potential_dirs if os.path.exists(d)]
         
-        if current_depth >= max_depth or directory in scanned_dirs:
+        # Normalize directory path
+        directory = os.path.normpath(os.path.abspath(directory))
+        
+        if current_depth > max_depth or directory in scanned_dirs:
             return
         
         scanned_dirs.add(directory)
@@ -1060,24 +1312,35 @@ def list_repositories():
                     organization = "Other"
                 repos.append({
                     "name": repo_name,
-                    "path": os.path.abspath(directory),
+                    "path": directory,
                     "organization": organization
                 })
                 return  # Don't scan inside git repos
             
-            # Scan subdirectories
-            for item in os.listdir(directory):
-                item_path = os.path.join(directory, item)
-                if os.path.isdir(item_path) and not item.startswith('.'):
-                    scan_directory(item_path, max_depth, current_depth + 1, base_dirs)
-        except (PermissionError, OSError):
+            # Only scan subdirectories if we haven't exceeded max depth
+            if current_depth < max_depth:
+                # Scan subdirectories
+                for item in os.listdir(directory):
+                    item_path = os.path.join(directory, item)
+                    # Normalize the path
+                    item_path = os.path.normpath(item_path)
+                    if os.path.isdir(item_path) and not item.startswith('.'):
+                        scan_directory(item_path, max_depth, current_depth + 1, base_dirs)
+        except (PermissionError, OSError) as e:
             # Skip directories we can't access
+            print(f"Permission error scanning {directory}: {e}")
+            pass
+        except Exception as e:
+            print(f"Error scanning {directory}: {e}")
             pass
     
     # Scan common locations
+    # Increase max_depth to 3 to allow scanning deeper (e.g., A:\Github -> AI-Agent -> GeminiGitAgent)
     for location in potential_dirs:
-        if os.path.exists(location):
-            scan_directory(location, max_depth=2)
+        location = os.path.normpath(os.path.abspath(location))
+        if os.path.exists(location) and os.path.isdir(location):
+            print(f"Scanning location: {location}")
+            scan_directory(location, max_depth=3)
     
     # Group repos by organization
     repos_by_org = {}
@@ -1513,6 +1776,86 @@ def get_file_diff():
         return jsonify({"diff": ""})
 
     return jsonify({"diff": diff_output})
+
+
+@app.route("/api/generate-readme", methods=["POST"])
+def generate_readme():
+    """Generate a comprehensive README.md for the repository using Gemini."""
+    helper = get_helper()
+    if not helper:
+        return jsonify({"error": "Repository not set"}), 400
+
+    global current_repo_path
+    if not current_repo_path:
+        return jsonify({"error": "Repository path not set"}), 400
+
+    try:
+        # Gather context
+        # 1. File structure
+        file_structure = []
+        ignore_dirs = {".git", "__pycache__", "node_modules", "venv", ".idea", ".vscode", "dist", "build"}
+        for root, dirs, files in os.walk(current_repo_path):
+            dirs[:] = [d for d in dirs if d not in ignore_dirs]
+            level = root.replace(current_repo_path, '').count(os.sep)
+            if level > 2: continue # Limit depth
+            indent = ' ' * 4 * (level)
+            file_structure.append(f"{indent}{os.path.basename(root)}/")
+            subindent = ' ' * 4 * (level + 1)
+            for f in files[:10]: # Limit files per dir
+                file_structure.append(f"{subindent}{f}")
+        
+        structure_text = "\n".join(file_structure[:50]) # Limit total lines
+
+        # 2. Recent commits
+        recent_commits = helper.run_command("git log --oneline -n 10", strip=False) or "No commits yet."
+
+        # 3. Existing README (if any)
+        existing_readme = ""
+        readme_path = os.path.join(current_repo_path, "README.md")
+        if os.path.exists(readme_path):
+            try:
+                with open(readme_path, 'r', encoding='utf-8') as f:
+                    existing_readme = f.read()[:1000] # Limit size
+            except:
+                pass
+
+        # Construct Prompt
+        prompt = f"""
+        You are an expert developer. Your task is to generate a comprehensive, professional README.md file for this project.
+        
+        Project Structure:
+        {structure_text}
+        
+        Recent Activity:
+        {recent_commits}
+        
+        Existing README (for context):
+        {existing_readme}
+        
+        Please generate a full README.md in Markdown format that includes:
+        1. Project Title and Description (infer from structure and commits)
+        2. Key Features
+        3. Installation Instructions (infer from file types, e.g., requirements.txt, package.json)
+        4. Usage Guide
+        5. Project Structure Overview
+        
+        Make it look professional and well-formatted. Return ONLY the markdown content, no code blocks or explanations.
+        """
+
+        # Generate
+        readme_content = send_gemini_prompt(prompt)
+        
+        if not readme_content:
+            return jsonify({"error": "Failed to generate content"}), 500
+
+        # Write to file
+        with open(readme_path, 'w', encoding='utf-8') as f:
+            f.write(readme_content)
+
+        return jsonify({"message": "README.md generated successfully", "content": readme_content})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":

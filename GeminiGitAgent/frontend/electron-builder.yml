@@ -1,0 +1,21 @@
+appId: com.geminigitagent.app
+productName: Gemini Git Agent
+directories:
+  output: release
+  buildResources: build
+files:
+  - "dist/**/*"
+  - "electron/**/*"
+  - "package.json"
+extraResources:
+  - from: backend-dist/gemini-git-agent-server.exe
+    to: backend/gemini-git-agent-server.exe
+win:
+  target: nsis
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Gemini Git Agent

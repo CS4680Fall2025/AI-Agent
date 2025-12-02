@@ -21,8 +21,12 @@ function createWindow() {
   });
 
   // In development, load from localhost
-  // In production, we would load from a built file
-  mainWindow.loadURL('http://localhost:5173');
+  // In production, load from the built file
+  if (app.isPackaged) {
+    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+  } else {
+    mainWindow.loadURL('http://localhost:5173');
+  }
 
   mainWindow.on('closed', function () {
     mainWindow = null;
@@ -41,19 +45,43 @@ ipcMain.handle('select-dirs', async () => {
 });
 
 function startBackend() {
-  const backendPath = path.join(__dirname, '../../backend');
-  const scriptPath = path.join(backendPath, 'server.py');
+  let backendExecutable;
+  let args = [];
+  let cwd;
 
-  console.log('Starting backend from:', backendPath);
+  if (app.isPackaged) {
+    // In production, use the bundled executable
+    // It is placed in resources/backend/gemini-git-agent-server.exe
+    const backendPath = path.join(process.resourcesPath, 'backend');
+    backendExecutable = path.join(backendPath, 'gemini-git-agent-server.exe');
+    cwd = backendPath;
+    console.log('Starting bundled backend from:', backendExecutable);
+  } else {
+    // In development, use python script
+    const backendPath = path.join(__dirname, '../../backend');
+    backendExecutable = 'python';
+    args = [path.join(backendPath, 'server.py')];
+    cwd = backendPath;
+    console.log('Starting development backend from:', backendPath);
+  }
 
-  // Spawn the python process
-  // We assume 'python' is in the PATH as per previous steps
-  const logFile = path.join(backendPath, 'backend-startup.log');
-  fs.writeFileSync(logFile, 'Starting backend...\n');
+  // Spawn the process
+  const logFile = path.join(cwd, 'backend-startup.log');
+  // Ensure cwd exists (it should)
+  if (!fs.existsSync(cwd)) {
+    console.error('Backend directory does not exist:', cwd);
+    return;
+  }
 
-  backendProcess = spawn('python', [scriptPath], {
-    cwd: backendPath,
-    stdio: ['ignore', 'pipe', 'pipe'] // Pipe output so we can capture it
+  try {
+    fs.writeFileSync(logFile, 'Starting backend...\n');
+  } catch (e) {
+    console.error('Could not write to log file:', e);
+  }
+
+  backendProcess = spawn(backendExecutable, args, {
+    cwd: cwd,
+    stdio: ['ignore', 'pipe', 'pipe']
   });
 
   backendProcess.stdout.on('data', (data) => {

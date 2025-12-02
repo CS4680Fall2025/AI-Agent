@@ -32,7 +32,7 @@ function StatusFeed({ data, onOpenFile, onFileReverted }) {
     }
 
     const files = parseStatus(data.status)
-    const filteredFiles = files.filter(file => 
+    const filteredFiles = files.filter(file =>
         file.path.toLowerCase().includes(filterText.toLowerCase())
     )
 
@@ -198,7 +198,7 @@ function StatusFeed({ data, onOpenFile, onFileReverted }) {
     const stageFiles = async (filePaths) => {
         if (filePaths.length === 0) return
         try {
-            await Promise.all(filePaths.map(path => 
+            await Promise.all(filePaths.map(path =>
                 axios.post(`${API_URL}/file/stage`, { path })
             ))
             setStagedFiles(prev => {
@@ -219,7 +219,7 @@ function StatusFeed({ data, onOpenFile, onFileReverted }) {
     const unstageFiles = async (filePaths) => {
         if (filePaths.length === 0) return
         try {
-            await Promise.all(filePaths.map(path => 
+            await Promise.all(filePaths.map(path =>
                 axios.post(`${API_URL}/file/unstage`, { path })
             ))
             setStagedFiles(prev => {
@@ -240,7 +240,7 @@ function StatusFeed({ data, onOpenFile, onFileReverted }) {
     const handleToggleStage = async (e, file) => {
         e.stopPropagation()
         const isStaged = stagedFiles.has(file.path)
-        
+
         try {
             if (isStaged) {
                 await axios.post(`${API_URL}/file/unstage`, { path: file.path })
@@ -266,7 +266,7 @@ function StatusFeed({ data, onOpenFile, onFileReverted }) {
         e.stopPropagation()
         const allStaged = filteredFiles.every(f => stagedFiles.has(f.path))
         const filePaths = filteredFiles.map(f => f.path)
-        
+
         if (allStaged) {
             await unstageFiles(filePaths)
         } else {
@@ -295,7 +295,7 @@ function StatusFeed({ data, onOpenFile, onFileReverted }) {
     // Discard all file changes
     const handleDiscardAll = async () => {
         if (filteredFiles.length === 0) return
-        
+
         const confirmMessage = `Are you sure you want to discard all changes to ${filteredFiles.length} file(s)? This action cannot be undone.`
         if (!confirm(confirmMessage)) return
 
@@ -304,7 +304,7 @@ function StatusFeed({ data, onOpenFile, onFileReverted }) {
             // Use the batch revert endpoint to avoid Git index locking issues
             const filePaths = filteredFiles.map(file => file.path)
             const res = await axios.post(`${API_URL}/files/revert-all`, { paths: filePaths })
-            
+
             // Check for any failures
             if (res.data.failed && res.data.failed.length > 0) {
                 const failedFiles = res.data.failed.map(f => `${f.file} (${f.error})`).join('\n')
@@ -313,7 +313,7 @@ function StatusFeed({ data, onOpenFile, onFileReverted }) {
                 // All succeeded
                 // No alert needed for success
             }
-            
+
             // Refresh status
             if (onFileReverted) {
                 onFileReverted()
@@ -328,15 +328,15 @@ function StatusFeed({ data, onOpenFile, onFileReverted }) {
     }
 
     return (
-        <div style={{ 
-            display: 'flex', 
-            flexDirection: 'column', 
+        <div style={{
+            display: 'flex',
+            flexDirection: 'column',
             height: '100%',
             background: '#0d1117',
             borderRight: '1px solid #30363d'
         }}>
             {/* Header with Tabs */}
-            <div style={{ 
+            <div style={{
                 borderBottom: '1px solid #30363d',
                 display: 'flex',
                 alignItems: 'center',
@@ -345,7 +345,7 @@ function StatusFeed({ data, onOpenFile, onFileReverted }) {
                 flexShrink: 0
             }}>
                 <div style={{ display: 'flex', gap: '0', flex: 1 }}>
-                    <div 
+                    <div
                         onClick={() => setActiveTab('changes')}
                         style={{
                             padding: '12px 16px',
@@ -374,7 +374,7 @@ function StatusFeed({ data, onOpenFile, onFileReverted }) {
                             </span>
                         )}
                     </div>
-                    <div 
+                    <div
                         onClick={() => setActiveTab('history')}
                         style={{
                             padding: '12px 16px',
@@ -447,115 +447,94 @@ function StatusFeed({ data, onOpenFile, onFileReverted }) {
 
                     {/* File List */}
                     <div style={{ flex: 1, overflowY: 'auto', padding: '8px', minHeight: 0 }}>
-                {filteredFiles.length > 0 ? (
-                    <div>
-                        {/* Select All Option and Discard All Button */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px', gap: '8px' }}>
-                            <div
-                                onClick={handleSelectAll}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '8px',
-                                    padding: '8px 12px',
-                                    cursor: 'pointer',
-                                    borderRadius: '6px',
-                                    background: 'transparent',
-                                    flex: 1
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = 'transparent'
-                                }}
-                            >
-                                <input
-                                    type="checkbox"
-                                    checked={allFilteredStaged}
-                                    onChange={handleSelectAll}
-                                    onClick={(e) => e.stopPropagation()}
-                                    style={{ cursor: 'pointer' }}
-                                />
-                                <span style={{ color: '#8b949e', fontSize: '0.9em' }}>
-                                    {filteredFiles.length} changed {filteredFiles.length === 1 ? 'file' : 'files'}
-                                </span>
-                            </div>
-                            <button
-                                onClick={handleDiscardAll}
-                                disabled={discardingAll || filteredFiles.length === 0}
-                                style={{
-                                    padding: '6px 12px',
-                                    background: discardingAll ? '#21262d' : '#da3633',
-                                    border: '1px solid #30363d',
-                                    borderRadius: '6px',
-                                    color: '#ffffff',
-                                    cursor: discardingAll ? 'not-allowed' : 'pointer',
-                                    fontSize: '0.85em',
-                                    fontWeight: '500',
-                                    whiteSpace: 'nowrap',
-                                    opacity: discardingAll ? 0.6 : 1
-                                }}
-                                title="Discard all changes"
-                            >
-                                {discardingAll ? 'Discarding...' : 'Discard All'}
-                            </button>
-                        </div>
-
-                        {/* File Items */}
-                        {filteredFiles.map((file, i) => {
-                            const isSelected = selectedFile === file.path
-                            const isStaged = stagedFiles.has(file.path)
-                            
-                            return (
-                                <div
-                                    key={i}
-                                    onClick={() => {
-                                        setSelectedFile(file.path)
-                                        if (onOpenFile) onOpenFile(file.path)
-                                    }}
-                                    onContextMenu={(e) => handleContextMenu(e, file)}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '8px',
-                                        padding: '8px 12px',
-                                        cursor: 'pointer',
-                                        borderRadius: '6px',
-                                        background: isSelected ? '#1c2128' : 'transparent',
-                                        border: isSelected ? '1px solid #30363d' : '1px solid transparent'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        if (!isSelected) e.currentTarget.style.background = 'transparent'
-                                    }}
-                                >
-                                    <input
-                                        type="checkbox"
-                                        checked={isStaged}
-                                        onChange={(e) => handleToggleStage(e, file)}
-                                        onClick={(e) => e.stopPropagation()}
-                                        style={{ cursor: 'pointer' }}
-                                    />
-                                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#c9d1d9' }}>
-                                        {file.path}
-                                    </span>
-                                    {getStatusIcon(file.status, file.code)}
+                        {filteredFiles.length > 0 ? (
+                            <div>
+                                {/* Select All Option and Discard All Button */}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px', gap: '8px' }}>
+                                    <div
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            padding: '8px 12px',
+                                            borderRadius: '6px',
+                                            background: 'transparent',
+                                            flex: 1
+                                        }}
+                                    >
+                                        <span style={{ color: '#8b949e', fontSize: '0.9em' }}>
+                                            {filteredFiles.length} changed {filteredFiles.length === 1 ? 'file' : 'files'}
+                                        </span>
+                                    </div>
+                                    <button
+                                        onClick={handleDiscardAll}
+                                        disabled={discardingAll || filteredFiles.length === 0}
+                                        style={{
+                                            padding: '6px 12px',
+                                            background: discardingAll ? '#21262d' : '#da3633',
+                                            border: '1px solid #30363d',
+                                            borderRadius: '6px',
+                                            color: '#ffffff',
+                                            cursor: discardingAll ? 'not-allowed' : 'pointer',
+                                            fontSize: '0.85em',
+                                            fontWeight: '500',
+                                            whiteSpace: 'nowrap',
+                                            opacity: discardingAll ? 0.6 : 1
+                                        }}
+                                        title="Discard all changes"
+                                    >
+                                        {discardingAll ? 'Discarding...' : 'Discard All'}
+                                    </button>
                                 </div>
-                            )
-                        })}
-                    </div>
-                ) : files.length === 0 ? (
-                    <div style={{ padding: '24px', color: '#8b949e', textAlign: 'center' }}>
-                        No changes detected.
-                    </div>
-                ) : (
-                    <div style={{ padding: '24px', color: '#8b949e', textAlign: 'center' }}>
-                        No files match the filter.
-                    </div>
-                )}
+
+                                {/* File Items */}
+                                {filteredFiles.map((file, i) => {
+                                    const isSelected = selectedFile === file.path
+                                    const isStaged = stagedFiles.has(file.path)
+
+                                    return (
+                                        <div
+                                            key={i}
+                                            onClick={() => {
+                                                setSelectedFile(file.path)
+                                                if (onOpenFile) onOpenFile(file.path)
+                                            }}
+                                            onContextMenu={(e) => handleContextMenu(e, file)}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '8px',
+                                                padding: '8px 12px',
+                                                cursor: 'pointer',
+                                                borderRadius: '6px',
+                                                background: isSelected ? '#1c2128' : 'transparent',
+                                                border: isSelected ? '1px solid #30363d' : '1px solid transparent'
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                if (!isSelected) e.currentTarget.style.background = 'transparent'
+                                            }}
+                                        >
+
+                                            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#c9d1d9' }}>
+                                                {file.path}
+                                            </span>
+                                            {getStatusIcon(file.status, file.code)}
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        ) : files.length === 0 ? (
+                            <div style={{ padding: '24px', color: '#8b949e', textAlign: 'center' }}>
+                                No changes detected.
+                            </div>
+                        ) : (
+                            <div style={{ padding: '24px', color: '#8b949e', textAlign: 'center' }}>
+                                No files match the filter.
+                            </div>
+                        )}
                     </div>
                 </>
             ) : (
@@ -569,16 +548,16 @@ function StatusFeed({ data, onOpenFile, onFileReverted }) {
                         <div>
                             {commits.map((commit, i) => {
                                 const date = new Date(commit.date)
-                                const formattedDate = date.toLocaleDateString('en-US', { 
-                                    month: 'short', 
+                                const formattedDate = date.toLocaleDateString('en-US', {
+                                    month: 'short',
                                     day: 'numeric',
                                     year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
                                 })
-                                const formattedTime = date.toLocaleTimeString('en-US', { 
-                                    hour: '2-digit', 
-                                    minute: '2-digit' 
+                                const formattedTime = date.toLocaleTimeString('en-US', {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
                                 })
-                                
+
                                 return (
                                     <div
                                         key={commit.hash}
@@ -597,15 +576,15 @@ function StatusFeed({ data, onOpenFile, onFileReverted }) {
                                             e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
                                         }}
                                     >
-                                        <div style={{ 
-                                            display: 'flex', 
-                                            alignItems: 'flex-start', 
+                                        <div style={{
+                                            display: 'flex',
+                                            alignItems: 'flex-start',
                                             justifyContent: 'space-between',
                                             marginBottom: '4px'
                                         }}>
                                             <div style={{ flex: 1 }}>
-                                                <div style={{ 
-                                                    color: '#c9d1d9', 
+                                                <div style={{
+                                                    color: '#c9d1d9',
                                                     fontWeight: '500',
                                                     marginBottom: '4px',
                                                     fontSize: '0.95em'
@@ -613,8 +592,8 @@ function StatusFeed({ data, onOpenFile, onFileReverted }) {
                                                     {commit.message}
                                                 </div>
                                                 {commit.body && (
-                                                    <div style={{ 
-                                                        color: '#8b949e', 
+                                                    <div style={{
+                                                        color: '#8b949e',
                                                         fontSize: '0.85em',
                                                         marginTop: '4px',
                                                         whiteSpace: 'pre-wrap',
@@ -626,15 +605,15 @@ function StatusFeed({ data, onOpenFile, onFileReverted }) {
                                                 )}
                                             </div>
                                         </div>
-                                        <div style={{ 
-                                            display: 'flex', 
-                                            alignItems: 'center', 
+                                        <div style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
                                             gap: '12px',
                                             marginTop: '8px',
                                             fontSize: '0.8em',
                                             color: '#8b949e'
                                         }}>
-                                            <span style={{ 
+                                            <span style={{
                                                 fontFamily: 'ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace',
                                                 color: '#58a6ff'
                                             }}>
