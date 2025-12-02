@@ -97,3 +97,24 @@ Press CTRL+C to quit
 [STDERR] 127.0.0.1 - - [02/Dec/2025 08:38:22] "GET /api/branches HTTP/1.1" 200 -
 [STDERR] 127.0.0.1 - - [02/Dec/2025 08:38:23] "POST /api/poll HTTP/1.1" 415 -
 [STDERR] 127.0.0.1 - - [02/Dec/2025 08:38:28] "GET /api/config/github-path HTTP/1.1" 200 -
+[STDERR]  * Detected change in 'A:\\Github\\AI-Agent\\GitHelper\\git_helper.py', reloading
+[STDOUT] Scanning configured GitHub path: A:\Github
+Scanning location: A:\Github
+Scanning location: C:\Users\johns\Documents
+Permission error scanning C:\Users\johns\Documents\My Music: [WinError 5] Access is denied: 'C:\\Users\\johns\\Documents\\My Music'
+Permission error scanning C:\Users\johns\Documents\My Pictures: [WinError 5] Access is denied: 'C:\\Users\\johns\\Documents\\My Pictures'
+Permission error scanning C:\Users\johns\Documents\My Videos: [WinError 5] Access is denied: 'C:\\Users\\johns\\Documents\\My Videos'
+Scanning configured GitHub path: A:\Github
+Scanning location: A:\Github
+Scanning location: C:\Users\johns\Documents
+Permission error scanning C:\Users\johns\Documents\My Music: [WinError 5] Access is denied: 'C:\\Users\\johns\\Documents\\My Music'
+Permission error scanning C:\Users\johns\Documents\My Pictures: [WinError 5] Access is denied: 'C:\\Users\\johns\\Documents\\My Pictures'
+Permission error scanning C:\Users\johns\Documents\My Videos: [WinError 5] Access is denied: 'C:\\Users\\johns\\Documents\\My Videos'
+[STDERR]  * Restarting with watchdog (windowsapi)
+[STDERR]  * Debugger is active!
+[STDERR]  * Debugger PIN: 480-665-344
+[STDERR]  * Detected change in 'A:\\Github\\AI-Agent\\GeminiGitAgent\\backend\\test_gemini.py', reloading
+[STDERR]  * Detected change in 'A:\\Github\\AI-Agent\\GeminiGitAgent\\backend\\watcher.py', reloading
+[STDERR]  * Restarting with watchdog (windowsapi)
+[STDERR]  * Debugger is active!
+[STDERR]  * Debugger PIN: 480-665-344
