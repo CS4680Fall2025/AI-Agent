@@ -132,14 +132,6 @@ nav a:hover {
     border: 1px solid var(--border-color);
 }
 
-.placeholder-screenshot {
-    background-color: var(--bg-secondary);
-    height: 200px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-}
 
 .fake-ui {
     width: 100%;
