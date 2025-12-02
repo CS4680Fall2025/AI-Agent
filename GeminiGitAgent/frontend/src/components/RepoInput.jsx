@@ -20,6 +20,94 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
     const [githubPath, setGithubPath] = useState('')
     const [loadingGithubPath, setLoadingGithubPath] = useState(false)
     const [savingGithubPath, setSavingGithubPath] = useState(false)
+    const [githubToken, setGithubToken] = useState('')
+    const [loadingGithubToken, setLoadingGithubToken] = useState(false)
+    const [savingGithubToken, setSavingGithubToken] = useState(false)
+
+    const [showClonePanel, setShowClonePanel] = useState(false)
+    const [githubRepos, setGithubRepos] = useState({})
+    const [loadingGithubRepos, setLoadingGithubRepos] = useState(false)
+    const [expandedGithubOrgs, setExpandedGithubOrgs] = useState({})
+    const [cloningRepo, setCloningRepo] = useState(null)
+
+    const fetchGithubToken = async () => {
+        setLoadingGithubToken(true)
+        try {
+            const res = await axios.get(`${API_URL}/config/github-token`)
+            setGithubToken(res.data.github_token || '')
+        } catch (err) {
+            console.error('Failed to fetch GitHub token:', err)
+        } finally {
+            setLoadingGithubToken(false)
+        }
+    }
+
+    const saveGithubToken = async () => {
+        setSavingGithubToken(true)
+        try {
+            await axios.post(`${API_URL}/config/github-token`, { github_token: githubToken })
+            alert('GitHub token saved!')
+        } catch (err) {
+            console.error('Failed to save GitHub token:', err)
+            alert(err.response?.data?.error || 'Failed to save GitHub token')
+        } finally {
+            setSavingGithubToken(false)
+        }
+    }
+
+
+
+    const fetchGithubRepos = async () => {
+        setLoadingGithubRepos(true)
+        try {
+            const res = await axios.get(`${API_URL}/github/repos`)
+            setGithubRepos(res.data.repos || {})
+            // Auto-expand all organizations
+            const orgs = Object.keys(res.data.repos || {})
+            const expanded = {}
+            orgs.forEach(org => {
+                expanded[org] = true
+            })
+            setExpandedGithubOrgs(expanded)
+        } catch (err) {
+            console.error('Failed to fetch GitHub repos:', err)
+            alert(err.response?.data?.error || 'Failed to fetch GitHub repositories. Check your token.')
+        } finally {
+            setLoadingGithubRepos(false)
+        }
+    }
+
+    const toggleGithubOrg = (org) => {
+        setExpandedGithubOrgs(prev => ({
+            ...prev,
+            [org]: !prev[org]
+        }))
+    }
+
+    const handleClone = async (repoUrl, repoName) => {
+        if (!confirm(`Clone ${repoName} to ${githubPath}\\${repoName}?`)) {
+            return
+        }
+
+        setCloningRepo(repoUrl)
+        try {
+            const res = await axios.post(`${API_URL}/github/clone`, {
+                repo_url: repoUrl
+            })
+            alert(`Successfully cloned ${repoName}!`)
+            // Refresh local repos
+            fetchAllRepos()
+            // Optionally set as active repo
+            if (confirm(`Successfully cloned ${repoName}. Open it now?`)) {
+                onSetRepo(res.data.path)
+            }
+        } catch (err) {
+            console.error('Failed to clone repo:', err)
+            alert(err.response?.data?.error || 'Failed to clone repository')
+        } finally {
+            setCloningRepo(null)
+        }
+    }
 
     const fetchGithubPath = async () => {
         setLoadingGithubPath(true)
@@ -88,35 +176,15 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
 
     const handleBrowse = async () => {
         try {
-            // Check if we're running in Electron
-            if (window.require && typeof window.require === 'function') {
-                const electron = window.require('electron')
-                const selectedPath = await electron.ipcRenderer.invoke('select-dirs')
-                if (selectedPath) {
-                    setPath(selectedPath)
-                }
-            } else {
-                // Web browser fallback - use HTML5 File System Access API for directory selection
-                if ('showDirectoryPicker' in window) {
-                    try {
-                        const dirHandle = await window.showDirectoryPicker()
-                        // Note: File System Access API doesn't give us the full path for security reasons
-                        // We can only get the directory name, so we'll prompt the user to enter the full path
-                        alert(`Selected directory: ${dirHandle.name}\n\nPlease enter the full path manually in the input field above.\n\nNote: For full path support, please use the Electron desktop app.`)
-                    } catch (err) {
-                        if (err.name !== 'AbortError') {
-                            console.error('Failed to open directory picker:', err)
-                            alert('Directory selection is not available in this browser.\n\nPlease enter the repository path manually.')
-                        }
-                    }
-                } else {
-                    // Fallback for browsers without File System Access API
-                    alert('Directory browser is only available in the Electron desktop app.\n\nPlease enter the repository path manually in the input field above.\n\nExample: C:\\Users\\YourName\\Documents\\MyRepo')
-                }
+            // We use window.require to access electron in the renderer process
+            // when nodeIntegration is enabled
+            const electron = window.require('electron')
+            const selectedPath = await electron.ipcRenderer.invoke('select-dirs')
+            if (selectedPath) {
+                setPath(selectedPath)
             }
         } catch (err) {
             console.error('Failed to open directory dialog:', err)
-            alert('Directory browser is not available.\n\nPlease enter the repository path manually.\n\nExample: C:\\Users\\YourName\\Documents\\MyRepo')
         }
     }
 
@@ -161,12 +229,20 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
         fetchAllRepos()
         // Fetch GitHub path config
         fetchGithubPath()
+        // Fetch GitHub token
+        fetchGithubToken()
+
     }, [])
 
     return (
-        <div className="card">
+        <div className="card" style={{
+            flex: !currentPath ? 1 : undefined,
+            display: 'flex',
+            flexDirection: 'column',
+            marginBottom: 0
+        }}>
             <div className="card-header">Repository Settings</div>
-            <div className="card-body">
+            <div className="card-body" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                 {currentPath ? (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
@@ -178,20 +254,39 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                         </div>
                     </div>
                 ) : (
-                    <div>
-                        <form onSubmit={handleSubmit} className="input-group" style={{ marginBottom: '1rem' }}>
+                    <div style={{
+                        flex: 1,
+                        width: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        gap: '20px'
+                    }}>
+                        <div style={{ fontSize: '1.2em', color: '#c9d1d9', marginBottom: '20px' }}>
+                            Welcome to Gemini Git Agent
+                        </div>
+                        <form onSubmit={handleSubmit} className="input-group" style={{ width: '100%', maxWidth: '800px', display: 'flex', gap: '10px' }}>
                             <input
                                 type="text"
                                 placeholder="Enter absolute path to repository..."
                                 value={path}
                                 onChange={(e) => setPath(e.target.value)}
-                                style={{ flex: 1 }}
+                                style={{
+                                    flex: 1,
+                                    padding: '12px 16px',
+                                    fontSize: '1.1em',
+                                    background: '#0d1117',
+                                    border: '1px solid #30363d',
+                                    borderRadius: '6px',
+                                    color: '#c9d1d9'
+                                }}
                             />
-                            <button type="button" onClick={handleBrowse} style={{ marginRight: '8px' }}>Browse</button>
-                            <button type="submit" className="primary">Set Repository</button>
+                            <button type="button" onClick={handleBrowse} style={{ padding: '0 20px', fontSize: '1em' }}>Browse</button>
+                            <button type="submit" className="primary" style={{ padding: '0 24px', fontSize: '1em' }}>Set Repository</button>
                         </form>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
                             <button
                                 type="button"
                                 onClick={() => {
@@ -199,10 +294,24 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                                     if (!showRepoList && allRepos.length === 0) {
                                         fetchAllRepos()
                                     }
+                                    setShowClonePanel(false)
                                 }}
                                 style={{ flex: 1 }}
                             >
-                                {showRepoList ? 'Hide Repos' : 'All Repos'} {loadingRepos ? '...' : allRepos.length > 0 ? `(${allRepos.length})` : ''}
+                                {showRepoList ? 'Hide Local Repos' : 'Local Repos'} {loadingRepos ? '...' : allRepos.length > 0 ? `(${allRepos.length})` : ''}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowClonePanel(!showClonePanel)
+                                    if (!showClonePanel && Object.keys(githubRepos).length === 0) {
+                                        fetchGithubRepos()
+                                    }
+                                    setShowRepoList(false)
+                                }}
+                                style={{ flex: 1 }}
+                            >
+                                {showClonePanel ? 'Hide GitHub' : 'Clone from GitHub'}
                             </button>
                             <button
                                 type="button"
@@ -252,6 +361,132 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                             )}
                         </div>
 
+                        {/* Clone from GitHub Panel */}
+                        {showClonePanel && (
+                            <div style={{ marginTop: '10px', fontSize: '0.9em', width: '100%' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                    <strong>GitHub Repositories:</strong>
+                                    <button
+                                        type="button"
+                                        onClick={fetchGithubRepos}
+                                        disabled={loadingGithubRepos}
+                                        style={{ padding: '2px 8px', fontSize: '0.8em' }}
+                                    >
+                                        {loadingGithubRepos ? 'Fetching...' : 'Refresh'}
+                                    </button>
+                                </div>
+                                {loadingGithubRepos ? (
+                                    <div style={{ padding: '12px', textAlign: 'center', color: '#8b949e' }}>Fetching repositories from GitHub...</div>
+                                ) : Object.keys(githubRepos).length > 0 ? (
+                                    <div style={{
+                                        maxHeight: '400px',
+                                        overflowY: 'auto',
+                                        border: '1px solid #30363d',
+                                        borderRadius: '6px',
+                                        padding: '8px'
+                                    }}>
+                                        {Object.entries(githubRepos).map(([org, repos]) => (
+                                            <div key={org} style={{ marginBottom: '12px' }}>
+                                                {/* Organization Header */}
+                                                <div
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'space-between',
+                                                        padding: '8px 12px',
+                                                        background: 'rgba(255,255,255,0.08)',
+                                                        borderRadius: '4px',
+                                                        cursor: 'pointer',
+                                                        marginBottom: '4px',
+                                                        border: '1px solid #30363d'
+                                                    }}
+                                                    onClick={() => toggleGithubOrg(org)}
+                                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
+                                                    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <span style={{
+                                                            fontSize: '0.85em',
+                                                            color: '#8b949e',
+                                                            userSelect: 'none'
+                                                        }}>
+                                                            {expandedGithubOrgs[org] ? '▼' : '▶'}
+                                                        </span>
+                                                        <span style={{
+                                                            fontWeight: '600',
+                                                            color: '#c9d1d9',
+                                                            fontSize: '0.95em'
+                                                        }}>
+                                                            {org}
+                                                        </span>
+                                                        <span style={{
+                                                            fontSize: '0.8em',
+                                                            color: '#8b949e'
+                                                        }}>
+                                                            ({repos.length})
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Repositories in Organization */}
+                                                {expandedGithubOrgs[org] && (
+                                                    <div style={{ paddingLeft: '20px' }}>
+                                                        {repos.map((repo, i) => (
+                                                            <div
+                                                                key={i}
+                                                                style={{
+                                                                    padding: '6px 12px',
+                                                                    marginBottom: '2px',
+                                                                    borderRadius: '4px',
+                                                                    background: 'rgba(255,255,255,0.03)',
+                                                                    display: 'flex',
+                                                                    justifyContent: 'space-between',
+                                                                    alignItems: 'center'
+                                                                }}
+                                                            >
+                                                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                                    <span style={{
+                                                                        fontWeight: '400',
+                                                                        color: '#c9d1d9',
+                                                                        fontSize: '0.9em'
+                                                                    }}>
+                                                                        {repo.name}
+                                                                    </span>
+                                                                    <span style={{ fontSize: '0.75em', color: '#8b949e' }}>
+                                                                        {repo.private ? '🔒 Private' : 'Public'}
+                                                                    </span>
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => handleClone(repo.clone_url, repo.name)}
+                                                                    disabled={cloningRepo === repo.clone_url}
+                                                                    style={{
+                                                                        padding: '3px 10px',
+                                                                        fontSize: '0.75em',
+                                                                        cursor: 'pointer',
+                                                                        backgroundColor: '#1f6feb',
+                                                                        color: 'white',
+                                                                        border: 'none',
+                                                                        borderRadius: '4px',
+                                                                        opacity: cloningRepo === repo.clone_url ? 0.7 : 1
+                                                                    }}
+                                                                >
+                                                                    {cloningRepo === repo.clone_url ? 'Cloning...' : 'Clone'}
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div style={{ padding: '12px', textAlign: 'center', color: '#8b949e' }}>
+                                        No repositories found. Check your token and connection.
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {/* All Repositories List */}
                         {showRepoList && (
                             <div style={{ marginTop: '10px', fontSize: '0.9em', width: '100%' }}>
@@ -269,17 +504,17 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                                 {loadingRepos ? (
                                     <div style={{ padding: '12px', textAlign: 'center', color: '#8b949e' }}>Scanning for repositories...</div>
                                 ) : Object.keys(reposByOrg).length > 0 ? (
-                                    <div style={{ 
-                                        maxHeight: '400px', 
-                                        overflowY: 'auto', 
-                                        border: '1px solid #30363d', 
+                                    <div style={{
+                                        maxHeight: '70vh',
+                                        overflowY: 'auto',
+                                        border: '1px solid #30363d',
                                         borderRadius: '6px',
                                         padding: '8px'
                                     }}>
                                         {Object.entries(reposByOrg).map(([org, repos]) => (
                                             <div key={org} style={{ marginBottom: '12px' }}>
                                                 {/* Organization Header */}
-                                                <div 
+                                                <div
                                                     style={{
                                                         display: 'flex',
                                                         alignItems: 'center',
@@ -296,21 +531,21 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                                                     onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
                                                 >
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <span style={{ 
+                                                        <span style={{
                                                             fontSize: '0.85em',
                                                             color: '#8b949e',
                                                             userSelect: 'none'
                                                         }}>
                                                             {expandedOrgs[org] ? '▼' : '▶'}
                                                         </span>
-                                                        <span style={{ 
-                                                            fontWeight: '600', 
+                                                        <span style={{
+                                                            fontWeight: '600',
                                                             color: '#c9d1d9',
                                                             fontSize: '0.95em'
                                                         }}>
                                                             {org}
                                                         </span>
-                                                        <span style={{ 
+                                                        <span style={{
                                                             fontSize: '0.8em',
                                                             color: '#8b949e'
                                                         }}>
@@ -318,14 +553,14 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                                                         </span>
                                                     </div>
                                                 </div>
-                                                
+
                                                 {/* Repositories in Organization */}
                                                 {expandedOrgs[org] && (
                                                     <div style={{ paddingLeft: '20px' }}>
                                                         {repos.map((repo, i) => (
-                                                            <div 
-                                                                key={i} 
-                                                                style={{ 
+                                                            <div
+                                                                key={i}
+                                                                style={{
                                                                     padding: '6px 12px',
                                                                     marginBottom: '2px',
                                                                     borderRadius: '4px',
@@ -339,8 +574,8 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                                                                 onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
                                                                 onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
                                                             >
-                                                                <span style={{ 
-                                                                    fontWeight: '400', 
+                                                                <span style={{
+                                                                    fontWeight: '400',
                                                                     color: '#c9d1d9',
                                                                     fontSize: '0.9em'
                                                                 }}>
@@ -381,14 +616,14 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                         {/* Settings Panel */}
                         {showSettings && (
                             <div style={{ marginTop: '10px', fontSize: '0.9em', width: '100%' }}>
-                                <div style={{ 
-                                    padding: '12px', 
-                                    border: '1px solid #30363d', 
+                                <div style={{
+                                    padding: '12px',
+                                    border: '1px solid #30363d',
                                     borderRadius: '6px',
                                     background: 'rgba(255,255,255,0.03)'
                                 }}>
                                     <div style={{ marginBottom: '12px', fontWeight: 'bold' }}>
-                                        GitHub Path Configuration
+                                        Configuration
                                     </div>
                                     <div style={{ marginBottom: '8px', fontSize: '0.85em', color: '#8b949e' }}>
                                         Set the path where your GitHub repositories are located. This path will be scanned first when searching for repositories.
@@ -399,8 +634,8 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                                             placeholder="e.g., A:\Github or C:\Users\YourName\Documents\GitHub"
                                             value={githubPath}
                                             onChange={(e) => setGithubPath(e.target.value)}
-                                            style={{ 
-                                                flex: 1, 
+                                            style={{
+                                                flex: 1,
                                                 padding: '6px 12px',
                                                 background: '#0d1117',
                                                 border: '1px solid #30363d',
@@ -414,31 +649,13 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                                             type="button"
                                             onClick={async () => {
                                                 try {
-                                                    // Check if we're running in Electron
-                                                    if (window.require && typeof window.require === 'function') {
-                                                        const electron = window.require('electron')
-                                                        const selectedPath = await electron.ipcRenderer.invoke('select-dirs')
-                                                        if (selectedPath) {
-                                                            setGithubPath(selectedPath)
-                                                        }
-                                                    } else {
-                                                        // Web browser fallback
-                                                        if ('showDirectoryPicker' in window) {
-                                                            try {
-                                                                const dirHandle = await window.showDirectoryPicker()
-                                                                alert(`Selected directory: ${dirHandle.name}\n\nPlease enter the full path manually.\n\nNote: For full path support, please use the Electron desktop app.`)
-                                                            } catch (err) {
-                                                                if (err.name !== 'AbortError') {
-                                                                    alert('Directory selection is not available in this browser.\n\nPlease enter the path manually.')
-                                                                }
-                                                            }
-                                                        } else {
-                                                            alert('Directory browser is only available in the Electron desktop app.\n\nPlease enter the path manually.\n\nExample: A:\\Github')
-                                                        }
+                                                    const electron = window.require('electron')
+                                                    const selectedPath = await electron.ipcRenderer.invoke('select-dirs')
+                                                    if (selectedPath) {
+                                                        setGithubPath(selectedPath)
                                                     }
                                                 } catch (err) {
                                                     console.error('Failed to open directory dialog:', err)
-                                                    alert('Directory browser is not available.\n\nPlease enter the path manually.')
                                                 }
                                             }}
                                             style={{
@@ -481,6 +698,51 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                                             Loading...
                                         </div>
                                     )}
+
+                                    {/* GitHub Token */}
+                                    <div style={{ marginTop: '16px', borderTop: '1px solid #30363d', paddingTop: '16px' }}>
+                                        <div style={{ marginBottom: '4px', fontSize: '0.85em', color: '#c9d1d9', fontWeight: '600' }}>
+                                            GitHub Personal Access Token
+                                        </div>
+                                        <div style={{ marginBottom: '8px', fontSize: '0.8em', color: '#8b949e' }}>
+                                            Required for fetching private repos and higher rate limits.
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                            <input
+                                                type="password"
+                                                value={githubToken}
+                                                onChange={(e) => setGithubToken(e.target.value)}
+                                                style={{
+                                                    flex: 1,
+                                                    padding: '6px 12px',
+                                                    background: '#0d1117',
+                                                    border: '1px solid #30363d',
+                                                    borderRadius: '4px',
+                                                    color: '#c9d1d9',
+                                                    fontSize: '0.9em'
+                                                }}
+                                                disabled={loadingGithubToken || savingGithubToken}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={saveGithubToken}
+                                                disabled={loadingGithubToken || savingGithubToken || !githubToken.trim()}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    fontSize: '0.9em',
+                                                    cursor: 'pointer',
+                                                    background: '#238636',
+                                                    border: 'none',
+                                                    borderRadius: '4px',
+                                                    color: 'white'
+                                                }}
+                                            >
+                                                {savingGithubToken ? 'Saving...' : 'Save'}
+                                            </button>
+                                        </div>
+                                    </div>
+
+
                                 </div>
                             </div>
                         )}
@@ -549,9 +811,10 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                             </div>
                         )}
                     </div>
-                )}
-            </div>
-        </div>
+                )
+                }
+            </div >
+        </div >
     )
 }
 
