@@ -5,18 +5,30 @@ import axios from 'axios'
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api'
 
 function ChatInterface({ onExecuteDSL }) {
-    const [messages, setMessages] = useState([
-        { role: 'assistant', content: 'Hello! I am your Gemini Git Agent. How can I help you today?' }
-    ])
+    const initialMessage = { role: 'assistant', content: 'Hello! I am your Gemini Git Agent. How can I help you today?' }
+    const [messages, setMessages] = useState([initialMessage])
     const [input, setInput] = useState('')
     const [loading, setLoading] = useState(false)
     const messagesEndRef = useRef(null)
+    const abortControllerRef = useRef(null)
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
     }
 
     useEffect(scrollToBottom, [messages])
+
+    const refreshChat = () => {
+        // Cancel any ongoing requests
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort()
+            abortControllerRef.current = null
+        }
+        // Reset chat to initial state
+        setMessages([initialMessage])
+        setInput('')
+        setLoading(false)
+    }
 
     const sendMessage = async (e) => {
         e.preventDefault()
@@ -27,8 +39,19 @@ function ChatInterface({ onExecuteDSL }) {
         setInput('')
         setLoading(true)
 
+        // Create abort controller for this request
+        const abortController = new AbortController()
+        abortControllerRef.current = abortController
+
         try {
-            const res = await axios.post(`${API_URL}/chat`, { message: userMsg })
+            const res = await axios.post(`${API_URL}/chat`, { message: userMsg }, {
+                signal: abortController.signal
+            })
+
+            // Check if request was aborted
+            if (abortController.signal.aborted) {
+                return
+            }
 
             const assistantMsg = res.data.response || "I didn't get a response."
             const dsl = res.data.dsl
@@ -40,10 +63,18 @@ function ChatInterface({ onExecuteDSL }) {
             }])
 
         } catch (err) {
+            // Don't show error if request was aborted
+            if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED' || err.name === 'AbortError' || abortController.signal.aborted) {
+                setLoading(false)
+                return
+            }
             const errorMessage = err.response?.data?.error || err.message
             setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${errorMessage}` }])
         } finally {
-            setLoading(false)
+            if (!abortController.signal.aborted) {
+                setLoading(false)
+            }
+            abortControllerRef.current = null
         }
     }
 
@@ -60,6 +91,34 @@ function ChatInterface({ onExecuteDSL }) {
                 pointerEvents: 'auto'
             }}>
                 <span>Chat with Gemini</span>
+                <button
+                    onClick={refreshChat}
+                    title={loading ? "Cancel request and refresh chat" : "Refresh chat (clear conversation)"}
+                    style={{
+                        background: '#21262d',
+                        border: '1px solid #30363d',
+                        borderRadius: '6px',
+                        color: loading ? '#f85149' : '#c9d1d9',
+                        padding: '6px 12px',
+                        fontSize: '0.85em',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                        e.target.style.background = '#30363d'
+                        e.target.style.borderColor = loading ? '#f85149' : '#58a6ff'
+                    }}
+                    onMouseLeave={(e) => {
+                        e.target.style.background = '#21262d'
+                        e.target.style.borderColor = '#30363d'
+                    }}
+                >
+                    <span>🔄</span>
+                    <span>{loading ? 'Cancel' : 'Refresh'}</span>
+                </button>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px', pointerEvents: 'auto' }}>
                 {messages.map((msg, idx) => (

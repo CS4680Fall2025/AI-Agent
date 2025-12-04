@@ -64,11 +64,24 @@ cached_files_list = None
 
 GEMINI_MODEL = "gemini-2.0-flash"
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-if not GEMINI_API_KEY:
+def get_gemini_api_key():
+    """Get Gemini API key from config file first, then fall back to environment variable."""
+    # Reload config to get latest
+    config = load_config()
+    api_key = config.get("gemini_key", "").strip()
+    
+    # Fall back to environment variable if not in config
+    if not api_key:
+        api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    
+    return api_key if api_key else None
+
+# Check initial API key status
+initial_key = get_gemini_api_key()
+if not initial_key:
     print(
-        "Warning: GEMINI_API_KEY is not set. Gemini endpoints will fail until you set it.",
+        "Warning: Gemini API key is not set. Gemini endpoints will fail until you set it.",
         file=sys.stderr,
     )
 
@@ -78,8 +91,9 @@ def send_gemini_prompt(prompt_text, response_mime_type=None, temperature=0.6):
     Send a prompt to Gemini and return the text response.
     Raises RuntimeError when the API cannot be reached or is misconfigured.
     """
-    if not GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
+    api_key = get_gemini_api_key()
+    if not api_key:
+        raise RuntimeError("Gemini API key is not configured. Please set it in Settings.")
 
     payload = {
         "contents": [
@@ -102,7 +116,7 @@ def send_gemini_prompt(prompt_text, response_mime_type=None, temperature=0.6):
     try:
         response = requests.post(
             GEMINI_URL,
-            params={"key": GEMINI_API_KEY},
+            params={"key": api_key},
             json=payload,
             timeout=45,
         )
@@ -1057,6 +1071,39 @@ def github_token_config():
         if save_config(app_config):
             print("GitHub token updated")
             return jsonify({"message": "GitHub token saved"})
+        else:
+            return jsonify({"error": "Failed to save configuration"}), 500
+
+
+@app.route("/api/config/gemini-key", methods=["GET", "POST"])
+def gemini_key_config():
+    """Get or set the Gemini API key configuration."""
+    global app_config
+    
+    if request.method == "GET":
+        # Reload config to get latest
+        app_config = load_config()
+        gemini_key = app_config.get("gemini_key", "")
+        # Don't return the full key for security, just indicate if it's set
+        return jsonify({
+            "gemini_key": gemini_key[:8] + "..." if gemini_key and len(gemini_key) > 8 else "",
+            "is_set": bool(gemini_key)
+        })
+    
+    elif request.method == "POST":
+        data = request.json or {}
+        gemini_key = data.get("gemini_key", "").strip()
+        
+        if not gemini_key:
+            return jsonify({"error": "gemini_key is required"}), 400
+        
+        # Reload config first to get latest
+        app_config = load_config()
+        # Update config
+        app_config["gemini_key"] = gemini_key
+        if save_config(app_config):
+            print("Gemini API key updated")
+            return jsonify({"message": "Gemini API key saved"})
         else:
             return jsonify({"error": "Failed to save configuration"}), 500
 
