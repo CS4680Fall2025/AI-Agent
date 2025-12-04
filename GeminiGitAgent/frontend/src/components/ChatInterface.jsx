@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import axios from 'axios'
 
-const API_URL = 'http://127.0.0.1:5000/api'
+// API URL: Use environment variable or default to localhost for development
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api'
 
 function ChatInterface({ onExecuteDSL }) {
     const [messages, setMessages] = useState([

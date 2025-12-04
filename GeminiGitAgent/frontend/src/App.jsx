@@ -9,7 +9,8 @@ import FileExplorer from './components/FileExplorer'
 import FileEditor from './components/FileEditor'
 import './index.css'
 
-const API_URL = 'http://127.0.0.1:5000/api'
+// API URL: Use environment variable or default to localhost for development
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000/api'
 
 function App() {
   const [repoPath, setRepoPath] = useState('')
