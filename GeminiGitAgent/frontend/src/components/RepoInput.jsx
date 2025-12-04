@@ -24,6 +24,10 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
     const [githubToken, setGithubToken] = useState('')
     const [loadingGithubToken, setLoadingGithubToken] = useState(false)
     const [savingGithubToken, setSavingGithubToken] = useState(false)
+    const [geminiKey, setGeminiKey] = useState('')
+    const [loadingGeminiKey, setLoadingGeminiKey] = useState(false)
+    const [savingGeminiKey, setSavingGeminiKey] = useState(false)
+    const [geminiKeyIsSet, setGeminiKeyIsSet] = useState(false)
 
     const [showClonePanel, setShowClonePanel] = useState(false)
     const [githubRepos, setGithubRepos] = useState({})
@@ -54,6 +58,35 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
             alert(err.response?.data?.error || 'Failed to save GitHub token')
         } finally {
             setSavingGithubToken(false)
+        }
+    }
+
+    const fetchGeminiKey = async () => {
+        setLoadingGeminiKey(true)
+        try {
+            const res = await axios.get(`${API_URL}/config/gemini-key`)
+            setGeminiKeyIsSet(res.data.is_set || false)
+            // Don't set the actual key value for security (it's masked on backend)
+            setGeminiKey('')
+        } catch (err) {
+            console.error('Failed to fetch Gemini key:', err)
+        } finally {
+            setLoadingGeminiKey(false)
+        }
+    }
+
+    const saveGeminiKey = async () => {
+        setSavingGeminiKey(true)
+        try {
+            await axios.post(`${API_URL}/config/gemini-key`, { gemini_key: geminiKey })
+            setGeminiKeyIsSet(true)
+            setGeminiKey('') // Clear input after saving
+            alert('Gemini API key saved!')
+        } catch (err) {
+            console.error('Failed to save Gemini key:', err)
+            alert(err.response?.data?.error || 'Failed to save Gemini API key')
+        } finally {
+            setSavingGeminiKey(false)
         }
     }
 
@@ -307,6 +340,8 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
         fetchGithubPath()
         // Fetch GitHub token
         fetchGithubToken()
+        // Fetch Gemini key
+        fetchGeminiKey()
 
     }, [])
 
@@ -424,6 +459,8 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                                     setShowSettings(!showSettings)
                                     if (!showSettings) {
                                         fetchGithubPath()
+                                        fetchGithubToken()
+                                        fetchGeminiKey()
                                     }
                                 }}
                                 style={{ flex: 1 }}
@@ -810,6 +847,7 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                                                 type="password"
                                                 value={githubToken}
                                                 onChange={(e) => setGithubToken(e.target.value)}
+                                                placeholder={githubToken ? '••••••••' : 'Enter GitHub token'}
                                                 style={{
                                                     flex: 1,
                                                     padding: '6px 12px',
@@ -836,6 +874,65 @@ function RepoInput({ onSetRepo, currentPath, onReset, onUpdate }) {
                                                 }}
                                             >
                                                 {savingGithubToken ? 'Saving...' : 'Save'}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Gemini API Key */}
+                                    <div style={{ marginTop: '16px', borderTop: '1px solid #30363d', paddingTop: '16px' }}>
+                                        <div style={{ marginBottom: '4px', fontSize: '0.85em', color: '#c9d1d9', fontWeight: '600' }}>
+                                            Gemini API Key
+                                        </div>
+                                        <div style={{ marginBottom: '8px', fontSize: '0.8em', color: '#8b949e' }}>
+                                            Required for AI features. Get your key from{' '}
+                                            <a 
+                                                href="https://aistudio.google.com/apikey" 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                style={{ color: '#58a6ff', textDecoration: 'none' }}
+                                                onMouseEnter={(e) => e.target.style.textDecoration = 'underline'}
+                                                onMouseLeave={(e) => e.target.style.textDecoration = 'none'}
+                                            >
+                                                Google AI Studio
+                                            </a>
+                                            {geminiKeyIsSet && (
+                                                <span style={{ marginLeft: '8px', color: '#3fb950' }}>
+                                                    ✓ Key is set
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                            <input
+                                                type="password"
+                                                value={geminiKey}
+                                                onChange={(e) => setGeminiKey(e.target.value)}
+                                                placeholder={geminiKeyIsSet ? 'Enter new key to update' : 'Enter Gemini API key'}
+                                                style={{
+                                                    flex: 1,
+                                                    padding: '6px 12px',
+                                                    background: '#0d1117',
+                                                    border: '1px solid #30363d',
+                                                    borderRadius: '4px',
+                                                    color: '#c9d1d9',
+                                                    fontSize: '0.9em'
+                                                }}
+                                                disabled={loadingGeminiKey || savingGeminiKey}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={saveGeminiKey}
+                                                disabled={loadingGeminiKey || savingGeminiKey || !geminiKey.trim()}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    fontSize: '0.9em',
+                                                    cursor: 'pointer',
+                                                    background: '#238636',
+                                                    border: 'none',
+                                                    borderRadius: '4px',
+                                                    color: 'white'
+                                                }}
+                                            >
+                                                {savingGeminiKey ? 'Saving...' : 'Save'}
                                             </button>
                                         </div>
                                     </div>
