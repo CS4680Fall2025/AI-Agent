@@ -1,12 +1,27 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
 
+# Get the directory of this spec file
+spec_dir = os.path.dirname(os.path.abspath(SPEC))
+
+# Paths for GitHelper and config
+githelper_path = os.path.normpath(os.path.join(spec_dir, '../../GitHelper'))
+config_path = os.path.normpath(os.path.join(spec_dir, '../config'))
 
 a = Analysis(
     ['server.py'],
-    pathex=[],
+    pathex=[
+        githelper_path,  # Add GitHelper to Python path
+    ],
     binaries=[],
-    datas=[],
-    hiddenimports=[],
+    datas=[
+        # Include config directory if it exists (for app_config.json template)
+        (config_path, 'config') if os.path.exists(config_path) else None,
+    ],
+    hiddenimports=[
+        'git_helper',
+        'watcher',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -14,6 +29,9 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+
+# Filter out None entries from datas
+a.datas = [d for d in a.datas if d is not None]
 pyz = PYZ(a.pure)
 
 exe = EXE(

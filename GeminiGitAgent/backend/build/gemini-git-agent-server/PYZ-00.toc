@@ -744,6 +744,7 @@
   ('gettext',
    'C:\\Users\\johns\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\gettext.py',
    'PYMODULE'),
+  ('git_helper', 'A:\\Github\\AI-Agent\\GitHelper\\git_helper.py', 'PYMODULE'),
   ('glob',
    'C:\\Users\\johns\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\glob.py',
    'PYMODULE'),
