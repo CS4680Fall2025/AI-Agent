@@ -6,10 +6,12 @@ import sys
 class GitHelper:
     def __init__(self, repo_path=None):
         self.cwd = repo_path if repo_path else os.getcwd()
+        self.last_error = None
         if not os.path.exists(self.cwd):
             print(f"Warning: Directory '{self.cwd}' does not exist.")
 
     def run_command(self, command, strip=True):
+        self.last_error = None
         try:
             result = subprocess.run(
                 command,
@@ -22,6 +24,7 @@ class GitHelper:
             )
             return result.stdout.strip() if strip else result.stdout
         except subprocess.CalledProcessError as e:
+            self.last_error = e.stderr.strip() if e.stderr else "Unknown git error"
             print(f"Error executing command: {command}")
             print(e.stderr)
             return None

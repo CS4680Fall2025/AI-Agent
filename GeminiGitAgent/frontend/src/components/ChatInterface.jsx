@@ -158,7 +158,7 @@ function ChatInterface({ onExecuteDSL }) {
                         onChange={(e) => setInput(e.target.value)}
                         onFocus={(e) => e.target.select()}
                         placeholder="Ask me to commit changes, check status..."
-                        autoFocus={!loading}
+                        placeholder="Ask me to commit changes, check status..."
                         disabled={loading}
                         readOnly={false}
                         style={{

@@ -331,7 +331,8 @@ function StatusFeed({ data, onOpenFile, onFileReverted }) {
         <div style={{
             display: 'flex',
             flexDirection: 'column',
-            height: '100%',
+            flex: 1,
+            minHeight: 0,
             background: '#0d1117',
             borderRight: '1px solid #30363d'
         }}>
@@ -634,18 +635,6 @@ function StatusFeed({ data, onOpenFile, onFileReverted }) {
                 </div>
             )}
 
-            {/* Gemini Analysis */}
-            {data.summary && (
-                <div style={{
-                    borderTop: '1px solid #30363d',
-                    padding: '16px',
-                    background: '#0d1117',
-                    flexShrink: 0
-                }}>
-                    <strong style={{ color: '#c9d1d9' }}>Gemini Analysis:</strong>
-                    <p style={{ marginTop: '8px', color: '#8b949e', fontSize: '0.9em' }}>{data.summary}</p>
-                </div>
-            )}
 
             {/* Context Menu */}
             {contextMenu && (
@@ -675,7 +664,7 @@ function StatusFeed({ data, onOpenFile, onFileReverted }) {
                         onMouseEnter={(e) => e.target.style.background = '#21262d'}
                         onMouseLeave={(e) => e.target.style.background = 'transparent'}
                     >
-                        {contextMenu.file.code.includes('?') ? 'Delete File' : 'Discard Changes'}
+                        {contextMenu.file.code.includes('?') ? 'Discard Change' : 'Discard Changes'}
                     </div>
                 </div>
             )}

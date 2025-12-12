@@ -13,14 +13,57 @@ from requests import RequestException
 
 load_dotenv(find_dotenv())
 
-# Load config file
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config/app_config.json")
+# Determine config file path - works in both development and PyInstaller EXE
+def get_config_path():
+    """Get the path to app_config.json, handling both development and packaged modes."""
+    # Check if running as PyInstaller EXE
+    if getattr(sys, 'frozen', False):
+        # Running as compiled EXE
+        # sys.executable is the path to the EXE
+        exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+        
+        # For Electron packaging: EXE is typically at resources/backend/gemini-git-agent-server.exe
+        # Try multiple locations in order of preference:
+        # 1. resources/config/ (sibling to backend/)
+        parent_dir = os.path.dirname(exe_dir)
+        config_in_parent = os.path.join(parent_dir, 'config', 'app_config.json')
+        
+        # 2. Same directory as EXE (resources/backend/config/)
+        config_in_exe_dir = os.path.join(exe_dir, 'config', 'app_config.json')
+        
+        # 3. Same directory as EXE (resources/backend/app_config.json)
+        config_next_to_exe = os.path.join(exe_dir, 'app_config.json')
+        
+        # Return the first path that exists, or the parent config if none exist (will be created)
+        if os.path.exists(config_in_parent):
+            return config_in_parent
+        elif os.path.exists(config_in_exe_dir):
+            return config_in_exe_dir
+        elif os.path.exists(config_next_to_exe):
+            return config_next_to_exe
+        else:
+            # Default to parent/config/ for new installs (most logical location)
+            return config_in_parent
+    else:
+        # Running as Python script - use relative path from server.py
+        return os.path.join(os.path.dirname(__file__), "../config/app_config.json")
+
+CONFIG_PATH = get_config_path()
+
+# Log config path for debugging (helpful for troubleshooting)
+print(f"Config file path: {CONFIG_PATH}")
+print(f"Config file exists: {os.path.exists(CONFIG_PATH)}")
+
 def load_config():
     """Load configuration from app_config.json"""
     try:
         if os.path.exists(CONFIG_PATH):
             with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                config = json.load(f)
+                print(f"Config loaded successfully from: {CONFIG_PATH}")
+                return config
+        else:
+            print(f"Config file not found at: {CONFIG_PATH}")
     except Exception as e:
         print(f"Warning: Could not load config file: {e}")
     return {}
@@ -62,19 +105,39 @@ cached_status_hash = None
 last_files_hash = None
 cached_files_list = None
 
-GEMINI_MODEL = "gemini-2.0-flash"
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+# Default model
+DEFAULT_GEMINI_MODEL = "gemini-1.5-flash"
+
+def get_gemini_model():
+    """Get Gemini model from config file, default to gemini-1.5-flash."""
+    config = load_config()
+    model = config.get("gemini_model", DEFAULT_GEMINI_MODEL)
+    return model if model else DEFAULT_GEMINI_MODEL
+
+def get_gemini_url():
+    """Get the Gemini API URL based on the configured model."""
+    model = get_gemini_model()
+    return f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 def get_gemini_api_key():
     """Get Gemini API key from config file first, then fall back to environment variable."""
-    # Reload config to get latest
+    # Always reload config to get latest (important: don't cache)
     config = load_config()
-    api_key = config.get("gemini_key", "").strip()
+    api_key = config.get("gemini_key", "")
+    
+    # Handle None, empty string, or whitespace-only
+    if api_key:
+        api_key = str(api_key).strip()
+    else:
+        api_key = ""
     
     # Fall back to environment variable if not in config
     if not api_key:
-        api_key = os.getenv("GEMINI_API_KEY", "").strip()
+        env_key = os.getenv("GEMINI_API_KEY", "")
+        if env_key:
+            api_key = str(env_key).strip()
     
+    # Return the key if it exists, None otherwise
     return api_key if api_key else None
 
 # Check initial API key status
@@ -94,6 +157,10 @@ def send_gemini_prompt(prompt_text, response_mime_type=None, temperature=0.6):
     api_key = get_gemini_api_key()
     if not api_key:
         raise RuntimeError("Gemini API key is not configured. Please set it in Settings.")
+    
+    # Verify key is not empty
+    if not api_key.strip():
+        raise RuntimeError("Gemini API key is empty. Please set a valid key in Settings.")
 
     payload = {
         "contents": [
@@ -114,15 +181,30 @@ def send_gemini_prompt(prompt_text, response_mime_type=None, temperature=0.6):
         payload["generationConfig"]["responseMimeType"] = response_mime_type
 
     try:
+        # Ensure API key is properly formatted (strip any whitespace)
+        clean_api_key = api_key.strip()
+        if not clean_api_key:
+            raise RuntimeError("Gemini API key is empty. Please set a valid key in Settings.")
+        
+        # Verify we have a valid-looking API key (starts with AIza)
+        if not clean_api_key.startswith("AIza"):
+            print(f"Warning: API key format may be incorrect (doesn't start with 'AIza')")
+        
+        # Make the request with the cleaned key
         response = requests.post(
-            GEMINI_URL,
-            params={"key": api_key},
+            get_gemini_url(),
+            params={"key": clean_api_key},
             json=payload,
             timeout=45,
         )
         response.raise_for_status()
     except RequestException as exc:
-        raise RuntimeError(f"Gemini API request failed: {exc}") from exc
+        # Sanitize error message to not expose API key
+        error_msg = str(exc)
+        if "?key=" in error_msg:
+            # Remove the key from error message for security
+            error_msg = error_msg.split("?key=")[0] + "?key=[REDACTED]"
+        raise RuntimeError(f"Gemini API request failed: {error_msg}") from exc
 
     data = response.json()
     try:
@@ -630,18 +712,177 @@ def list_branches():
     })
 
 
+@app.route("/api/has-changes", methods=["GET"])
+def has_changes():
+    """Check if there are uncommitted changes in the working directory."""
+    helper = get_helper()
+    if not helper:
+        return jsonify({"error": "Repository not set"}), 400
+
+    # Check for uncommitted changes (staged or unstaged)
+    status_output = helper.run_command("git status --porcelain", strip=False)
+    has_changes = status_output and status_output.strip() != ""
+    
+    return jsonify({
+        "has_changes": has_changes,
+        "status": status_output.strip() if status_output else ""
+    })
+
+
+@app.route("/api/stash/create", methods=["POST"])
+def create_stash():
+    """Create a stash with an optional message."""
+    helper = get_helper()
+    if not helper:
+        return jsonify({"error": "Repository not set"}), 400
+
+    data = request.json or {}
+    message = data.get("message", "Stashed changes")
+    include_untracked = data.get("include_untracked", False)
+
+    # Build stash command
+    stash_cmd = "git stash push"
+    if include_untracked:
+        stash_cmd += " -u"
+    if message:
+        stash_cmd += f' -m "{message}"'
+
+    output = helper.run_command(stash_cmd, strip=False)
+    
+    if output is None:
+        return jsonify({"error": "Failed to create stash"}), 500
+
+    return jsonify({
+        "output": output,
+        "success": True
+    })
+
+
+@app.route("/api/stash/list", methods=["GET"])
+def list_stashes():
+    """List all stashes."""
+    helper = get_helper()
+    if not helper:
+        return jsonify({"error": "Repository not set"}), 400
+
+    # Get stash list with format: stash@{index}: On branch: message
+    output = helper.run_command("git stash list", strip=False)
+    
+    if output is None:
+        return jsonify({"error": "Failed to list stashes"}), 500
+
+    stashes = []
+    if output and output.strip():
+        for line in output.strip().split('\n'):
+            if line.strip():
+                # Parse stash entry: stash@{0}: On branch: message
+                parts = line.split(':', 2)
+                if len(parts) >= 3:
+                    stash_ref = parts[0].strip()  # stash@{0}
+                    branch_info = parts[1].strip()  # On branch
+                    message = parts[2].strip() if len(parts) > 2 else ""
+                    # Extract index from stash@{0}
+                    index = stash_ref.replace('stash@{', '').replace('}', '')
+                    stashes.append({
+                        "index": int(index),
+                        "ref": stash_ref,
+                        "branch": branch_info,
+                        "message": message,
+                        "full": line.strip()
+                    })
+
+    return jsonify({
+        "stashes": stashes
+    })
+
+
+@app.route("/api/stash/apply", methods=["POST"])
+def apply_stash():
+    """Apply a stash (keeps it in the stash list)."""
+    helper = get_helper()
+    if not helper:
+        return jsonify({"error": "Repository not set"}), 400
+
+    data = request.json or {}
+    stash_ref = data.get("stash", "stash@{0}")
+
+    output = helper.run_command(f'git stash apply "{stash_ref}"', strip=False)
+    
+    if output is None:
+        return jsonify({"error": f"Failed to apply stash '{stash_ref}'"}), 500
+
+    return jsonify({
+        "output": output,
+        "success": True
+    })
+
+
+@app.route("/api/stash/pop", methods=["POST"])
+def pop_stash():
+    """Pop a stash (removes it from the stash list)."""
+    helper = get_helper()
+    if not helper:
+        return jsonify({"error": "Repository not set"}), 400
+
+    data = request.json or {}
+    stash_ref = data.get("stash", "stash@{0}")
+
+    output = helper.run_command(f'git stash pop "{stash_ref}"', strip=False)
+    
+    if output is None:
+        return jsonify({"error": f"Failed to pop stash '{stash_ref}'"}), 500
+
+    return jsonify({
+        "output": output,
+        "success": True
+    })
+
+
+@app.route("/api/stash/drop", methods=["POST"])
+def drop_stash():
+    """Delete a stash without applying it."""
+    helper = get_helper()
+    if not helper:
+        return jsonify({"error": "Repository not set"}), 400
+
+    data = request.json or {}
+    stash_ref = data.get("stash", "stash@{0}")
+
+    output = helper.run_command(f'git stash drop "{stash_ref}"', strip=False)
+    
+    if output is None:
+        return jsonify({"error": f"Failed to drop stash '{stash_ref}'"}), 500
+
+    return jsonify({
+        "output": output,
+        "success": True
+    })
+
+
 @app.route("/api/branch/switch", methods=["POST"])
 def switch_branch():
-    """Switch to a different branch."""
+    """Switch to a different branch with options for handling uncommitted changes."""
     helper = get_helper()
     if not helper:
         return jsonify({"error": "Repository not set"}), 400
 
     data = request.json or {}
     branch_name = data.get("branch")
+    stash_changes = data.get("stash_changes", False)  # If True, stash changes on current branch
+    bring_changes = data.get("bring_changes", False)  # If True, bring changes to new branch
 
     if not branch_name:
         return jsonify({"error": "Branch name required"}), 400
+
+    current_branch = helper.run_command("git branch --show-current")
+    
+    # If stashing, create a stash before switching
+    if stash_changes:
+        stash_message = f"Stashed changes from {current_branch.strip() if current_branch else 'unknown branch'}"
+        # Use -u to include untracked files, ensuring the working directory is clean for the switch
+        stash_output = helper.run_command(f'git stash push -u -m "{stash_message}"', strip=False)
+        if stash_output is None:
+            return jsonify({"error": "Failed to stash changes"}), 500
 
     # Check if branch exists locally (more compatible command)
     branches = helper.run_command("git branch", strip=False)
@@ -655,7 +896,11 @@ def switch_branch():
 
     if branch_exists:
         # Switch to existing local branch
-        output = helper.run_command(f'git checkout "{branch_name}"')
+        if bring_changes:
+            # Use git checkout to bring changes (will fail if there are conflicts)
+            output = helper.run_command(f'git checkout "{branch_name}"')
+        else:
+            output = helper.run_command(f'git checkout "{branch_name}"')
     else:
         # Try to checkout remote branch (creates local tracking branch)
         # First check if it exists remotely
@@ -674,14 +919,16 @@ def switch_branch():
             return jsonify({"error": f"Branch '{branch_name}' not found"}), 404
 
     if output is None:
-        return jsonify({"error": f"Failed to switch to branch '{branch_name}'"}), 500
+        error_msg = helper.last_error if hasattr(helper, 'last_error') and helper.last_error else "Unknown git error"
+        return jsonify({"error": f"Failed to switch to branch '{branch_name}': {error_msg}"}), 500
 
     # Get new current branch
     new_branch = helper.run_command("git branch --show-current")
     
     return jsonify({
         "output": output,
-        "branch": new_branch.strip() if new_branch else branch_name
+        "branch": new_branch.strip() if new_branch else branch_name,
+        "stashed": stash_changes
     })
 
 
@@ -716,7 +963,8 @@ def create_branch():
         output = helper.run_command(f'git branch "{branch_name}"')
 
     if output is None:
-        return jsonify({"error": f"Failed to create branch '{branch_name}'"}), 500
+        error_msg = helper.last_error if hasattr(helper, 'last_error') and helper.last_error else "Unknown git error"
+        return jsonify({"error": f"Failed to create branch '{branch_name}': {error_msg}"}), 500
 
     # Get current branch (will be new branch if switch=True)
     current = helper.run_command("git branch --show-current")
@@ -1075,9 +1323,128 @@ def github_token_config():
             return jsonify({"error": "Failed to save configuration"}), 500
 
 
-@app.route("/api/config/gemini-key", methods=["GET", "POST"])
+@app.route("/api/config/gemini-key/test", methods=["POST"])
+def test_gemini_key():
+    """Test a Gemini API key without saving it."""
+    data = request.json or {}
+    test_key = data.get("gemini_key", "").strip()
+    
+    if not test_key:
+        return jsonify({"error": "gemini_key is required"}), 400
+    
+    # Sanitize URL for logging (never log the key)
+    url = get_gemini_url()
+    safe_url = url.split("?")[0] if "?" in url else url
+    
+    # Make a minimal test request to Gemini
+    try:
+        test_payload = {
+            "contents": [{
+                "parts": [{"text": "test"}]
+            }],
+            "generationConfig": {
+                "temperature": 0.1,
+            }
+        }
+        
+        response = requests.post(
+            url,
+            params={"key": test_key},
+            json=test_payload,
+            timeout=10,
+        )
+        
+        # Handle different status codes properly
+        status_code = response.status_code
+        
+        if status_code == 200:
+            # Key is valid and request worked
+            return jsonify({
+                "valid": True,
+                "status": "valid",
+                "message": "API key is valid"
+            })
+        elif status_code in (401, 403):
+            # Invalid key or unauthorized
+            return jsonify({
+                "valid": False,
+                "status": "invalid_key",
+                "error": "This API key is invalid or unauthorized. Please check your key and try again."
+            }), status_code
+        elif status_code == 429:
+            # Rate limit / quota exceeded - key is probably valid
+            return jsonify({
+                "valid": True,  # Accept the key even if rate limited
+                "status": "rate_limited",
+                "warning": "Gemini is rate-limiting this key. It may be valid, but you've hit the quota or sent too many requests. Try again later or check your quota."
+            }), 429
+        elif status_code >= 500:
+            # Server error
+            return jsonify({
+                "valid": False,
+                "status": "server_error",
+                "error": f"Gemini service error (HTTP {status_code}). Try again later."
+            }), status_code
+        else:
+            # Other client errors
+            return jsonify({
+                "valid": False,
+                "status": "unknown_error",
+                "error": f"Unexpected response from Gemini API (HTTP {status_code})"
+            }), status_code
+            
+    except requests.RequestException as exc:
+        # Handle network/request errors
+        status_code = None
+        if hasattr(exc, 'response') and exc.response is not None:
+            status_code = exc.response.status_code
+            
+            if status_code in (401, 403):
+                return jsonify({
+                    "valid": False,
+                    "status": "invalid_key",
+                    "error": "This API key is invalid or unauthorized. Please check your key and try again."
+                }), status_code
+            elif status_code == 429:
+                return jsonify({
+                    "valid": True,  # Accept the key even if rate limited
+                    "status": "rate_limited",
+                    "warning": "Gemini is rate-limiting this key. It may be valid, but you've hit the quota or sent too many requests. Try again later or check your quota."
+                }), status_code
+            elif status_code >= 500:
+                return jsonify({
+                    "valid": False,
+                    "status": "server_error",
+                    "error": f"Gemini service error (HTTP {status_code}). Try again later."
+                }), status_code
+        
+        # Generic error - sanitize the exception message to never include the key
+        error_msg = str(exc)
+        # Remove any potential key leakage from error messages
+        if "?key=" in error_msg:
+            error_msg = error_msg.split("?key=")[0] + "?key=[REDACTED]"
+        
+        # Log with sanitized URL
+        print(f"Gemini API request failed: {status_code or 'N/A'} {safe_url}")
+        
+        return jsonify({
+            "valid": False,
+            "status": "request_failed",
+            "error": f"Failed to connect to Gemini API. Please check your internet connection and try again."
+        }), 500
+    except Exception as exc:
+        # Unexpected errors
+        print(f"Unexpected error testing Gemini key: {type(exc).__name__}")
+        return jsonify({
+            "valid": False,
+            "status": "unknown_error",
+            "error": "An unexpected error occurred. Please try again."
+        }), 500
+
+
+@app.route("/api/config/gemini-key", methods=["GET", "POST", "DELETE"])
 def gemini_key_config():
-    """Get or set the Gemini API key configuration."""
+    """Get, set, or delete the Gemini API key configuration."""
     global app_config
     
     if request.method == "GET":
@@ -1086,24 +1453,177 @@ def gemini_key_config():
         gemini_key = app_config.get("gemini_key", "")
         # Don't return the full key for security, just indicate if it's set
         return jsonify({
-            "gemini_key": gemini_key[:8] + "..." if gemini_key and len(gemini_key) > 8 else "",
-            "is_set": bool(gemini_key)
+            "is_set": bool(gemini_key),
+            "status": "connected" if bool(gemini_key) else "not_configured"
         })
     
     elif request.method == "POST":
         data = request.json or {}
         gemini_key = data.get("gemini_key", "").strip()
+        skip_test = data.get("skip_test", False)  # Allow skipping test for migration
         
         if not gemini_key:
             return jsonify({"error": "gemini_key is required"}), 400
         
+        # Test the key before saving (unless explicitly skipped)
+        if not skip_test:
+            try:
+                test_payload = {
+                    "contents": [{
+                        "parts": [{"text": "test"}]
+                    }],
+                    "generationConfig": {
+                        "temperature": 0.1,
+                    }
+                }
+                
+                # Sanitize URL for logging (never log the key)
+                url = get_gemini_url()
+                safe_url = url.split("?")[0] if "?" in url else url
+                
+                response = requests.post(
+                    url,
+                    params={"key": gemini_key},
+                    json=test_payload,
+                    timeout=10,
+                )
+                
+                status_code = response.status_code
+                
+                if status_code == 200:
+                    # Key is valid
+                    pass
+                elif status_code in (401, 403):
+                    return jsonify({
+                        "error": "This API key is invalid or unauthorized. Please check your key and try again.",
+                        "valid": False,
+                        "status": "invalid_key"
+                    }), status_code
+                elif status_code == 429:
+                    # Rate limited - accept the key but warn
+                    print(f"Warning: Gemini API rate limited during key save (HTTP 429) - {safe_url}")
+                    # Continue to save the key even if rate limited
+                elif status_code >= 500:
+                    return jsonify({
+                        "error": f"Gemini service error (HTTP {status_code}). Try again later.",
+                        "valid": False,
+                        "status": "server_error"
+                    }), status_code
+                else:
+                    return jsonify({
+                        "error": f"Unexpected response from Gemini API (HTTP {status_code})",
+                        "valid": False,
+                        "status": "unknown_error"
+                    }), status_code
+                    
+            except requests.RequestException as exc:
+                status_code = None
+                if hasattr(exc, 'response') and exc.response is not None:
+                    status_code = exc.response.status_code
+                    
+                    if status_code in (401, 403):
+                        return jsonify({
+                            "error": "This API key is invalid or unauthorized. Please check your key and try again.",
+                            "valid": False,
+                            "status": "invalid_key"
+                        }), status_code
+                    elif status_code == 429:
+                        # Rate limited - accept the key but warn
+                        print(f"Warning: Gemini API rate limited during key save (HTTP 429) - {safe_url}")
+                        # Continue to save the key even if rate limited
+                    elif status_code >= 500:
+                        return jsonify({
+                            "error": f"Gemini service error (HTTP {status_code}). Try again later.",
+                            "valid": False,
+                            "status": "server_error"
+                        }), status_code
+                
+                # Generic error - sanitize to never include the key
+                error_msg = str(exc)
+                if "?key=" in error_msg:
+                    error_msg = error_msg.split("?key=")[0] + "?key=[REDACTED]"
+                
+                print(f"Gemini API request failed: {status_code or 'N/A'} {safe_url}")
+                
+                return jsonify({
+                    "error": "Failed to connect to Gemini API. Please check your internet connection and try again.",
+                    "valid": False,
+                    "status": "request_failed"
+                }), 500
+            except Exception as exc:
+                print(f"Unexpected error validating Gemini key: {type(exc).__name__}")
+                return jsonify({
+                    "error": "An unexpected error occurred. Please try again.",
+                    "valid": False,
+                    "status": "unknown_error"
+                }), 500
+        
+        # Reload config first to get latest
+        app_config = load_config()
+        # Update config with the key (ensure it's stored as string)
+        app_config["gemini_key"] = str(gemini_key).strip()
+        if save_config(app_config):
+            # Verify the key was saved correctly by reloading
+            verify_config = load_config()
+            saved_key = verify_config.get("gemini_key", "")
+            if saved_key and saved_key.strip() == gemini_key.strip():
+                print(f"Gemini API key updated and validated (length: {len(saved_key)} chars)")
+                return jsonify({
+                    "message": "Gemini API key saved and validated",
+                    "valid": True
+                })
+            else:
+                print("Warning: Gemini API key may not have been saved correctly")
+                return jsonify({
+                    "message": "Gemini API key saved but verification failed. Please try again.",
+                    "valid": True
+                })
+        else:
+            return jsonify({"error": "Failed to save configuration"}), 500
+    
+    elif request.method == "DELETE":
+        # Delete the API key
+        app_config = load_config()
+        if "gemini_key" in app_config:
+            del app_config["gemini_key"]
+            if save_config(app_config):
+                print("Gemini API key deleted")
+                return jsonify({"message": "Gemini API key deleted"})
+            else:
+                return jsonify({"error": "Failed to delete configuration"}), 500
+        else:
+            return jsonify({"message": "No API key to delete"})
+
+
+@app.route("/api/config/gemini-model", methods=["GET", "POST"])
+def gemini_model_config():
+    """Get or set the Gemini model configuration."""
+    global app_config
+    
+    if request.method == "GET":
+        # Reload config to get latest
+        app_config = load_config()
+        model = app_config.get("gemini_model", DEFAULT_GEMINI_MODEL)
+        return jsonify({"gemini_model": model})
+    
+    elif request.method == "POST":
+        data = request.json or {}
+        model = data.get("gemini_model", "").strip()
+        
+        if not model:
+            return jsonify({"error": "gemini_model is required"}), 400
+        
+        # Validate model name (basic check)
+        if not model.startswith("gemini-"):
+            return jsonify({"error": "Invalid model name. Must start with 'gemini-'"}), 400
+        
         # Reload config first to get latest
         app_config = load_config()
         # Update config
-        app_config["gemini_key"] = gemini_key
+        app_config["gemini_model"] = model
         if save_config(app_config):
-            print("Gemini API key updated")
-            return jsonify({"message": "Gemini API key saved"})
+            print(f"Gemini model updated to: {model}")
+            return jsonify({"message": "Gemini model updated", "gemini_model": model})
         else:
             return jsonify({"error": "Failed to save configuration"}), 500
 
@@ -1702,14 +2222,58 @@ def get_file_diff():
     if not rel_path:
         return jsonify({"error": "Path required"}), 400
 
+    # Check file status
+    status_output = helper.run_command("git status --porcelain -u", strip=False)
+    file_status = None
+    is_untracked = False
+    is_deleted = False
+    
+    if status_output:
+        for line in status_output.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            line_path = line[3:] if len(line) > 3 else ""
+            if line_path.startswith('"') and line_path.endswith('"'):
+                line_path = line_path[1:-1]
+            
+            # Normalize paths for comparison
+            normalized_line_path = line_path.replace('\\', '/')
+            normalized_file_path = rel_path.replace('\\', '/')
+            
+            if (normalized_line_path == normalized_file_path or 
+                line_path == rel_path or 
+                line.endswith(rel_path) or
+                normalized_line_path.endswith(normalized_file_path)):
+                status_code = line[:2]
+                if status_code == '??':
+                    is_untracked = True
+                    file_status = 'untracked'
+                elif status_code[0] == 'D' or status_code[1] == 'D':
+                    is_deleted = True
+                    file_status = 'deleted'
+                elif status_code[0] == 'A' or (status_code[0] == ' ' and status_code[1] == 'A'):
+                    file_status = 'new'
+                else:
+                    file_status = 'modified'
+                break
+    
+    # If file is untracked, return empty diff (frontend will show as new file)
+    if is_untracked:
+        return jsonify({"diff": "", "is_untracked": True, "is_deleted": False, "file_status": file_status})
+    
+    # If file is deleted, get diff showing what was removed
+    if is_deleted:
+        diff_output = helper.run_command(f'git diff HEAD -- "{rel_path}"')
+        return jsonify({"diff": diff_output or "", "is_untracked": False, "is_deleted": True, "file_status": file_status})
+    
     # git diff HEAD -- <path> shows uncommitted changes (staged + unstaged) vs HEAD
-    # If file is untracked, diff might be empty or error.
     diff_output = helper.run_command(f'git diff HEAD -- "{rel_path}"')
 
     if diff_output is None:
-        return jsonify({"diff": ""})
+        return jsonify({"diff": "", "is_untracked": False, "is_deleted": False, "file_status": file_status})
 
-    return jsonify({"diff": diff_output})
+    return jsonify({"diff": diff_output, "is_untracked": False, "is_deleted": False, "file_status": file_status})
 
 
 @app.route("/api/generate-readme", methods=["POST"])

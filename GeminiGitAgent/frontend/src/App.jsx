@@ -2,11 +2,13 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import axios from 'axios'
 import RepoInput from './components/RepoInput'
 import StatusFeed from './components/StatusFeed'
-import ActionPanel from './components/ActionPanel'
 import ChatInterface from './components/ChatInterface'
 import GitControls from './components/GitControls'
 import FileExplorer from './components/FileExplorer'
 import FileEditor from './components/FileEditor'
+import DiffViewer from './components/DiffViewer'
+import SetupScreen from './components/SetupScreen'
+import Settings from './components/Settings'
 import './index.css'
 
 // API URL: Use environment variable or default to localhost for development
@@ -27,7 +29,7 @@ function App() {
 
   // File Viewer State
   const [showFiles, setShowFiles] = useState(false)
-  const [showLogs, setShowLogs] = useState(true)
+  const [showLogs, setShowLogs] = useState(false)
   const [selectedFile, setSelectedFile] = useState(null)
   const [fileRefreshTrigger, setFileRefreshTrigger] = useState(0)
   const [showChat, setShowChat] = useState(false)
@@ -35,6 +37,33 @@ function App() {
   const [repoSummary, setRepoSummary] = useState(null)
   const [loadingSummary, setLoadingSummary] = useState(false)
   const [updatingReadme, setUpdatingReadme] = useState(false)
+  const [showSetup, setShowSetup] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [apiKeyConfigured, setApiKeyConfigured] = useState(null) // null = checking, true = configured, false = not configured
+
+  // Check API key status on mount
+  useEffect(() => {
+    checkApiKeyStatus()
+  }, [])
+
+  const checkApiKeyStatus = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/config/gemini-key`)
+      const isSet = res.data.is_set || false
+      setApiKeyConfigured(isSet)
+      setShowSetup(!isSet)
+    } catch (err) {
+      console.error('Failed to check API key status:', err)
+      // If we can't check, assume not configured to be safe
+      setApiKeyConfigured(false)
+      setShowSetup(true)
+    }
+  }
+
+  const handleSetupComplete = () => {
+    setApiKeyConfigured(true)
+    setShowSetup(false)
+  }
 
   const addLog = useCallback((msg) => {
     setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev])
@@ -272,85 +301,14 @@ function App() {
               <button onClick={() => setShowLogs(!showLogs)} style={{ padding: '4px 8px', fontSize: '0.9em' }}>
                 {showLogs ? 'Hide Logs' : 'Logs'}
               </button>
-              <button 
-                onClick={async () => {
-                  if (updatingReadme) return
-                  const confirmed = window.confirm('Generate README.md with Gemini? This may overwrite the existing README.')
-                  if (!confirmed) return
-                  setUpdatingReadme(true)
-                  try {
-                    addLog('Generating README.md...')
-                    await axios.post(`${API_URL}/generate-readme`)
-                    addLog('README.md generated successfully.')
-                    handleManualUpdate(true)
-                  } catch (err) {
-                    console.error('Failed to generate README:', err)
-                    addLog(`Failed to generate README: ${err.response?.data?.error || err.message}`)
-                  } finally {
-                    setUpdatingReadme(false)
-                  }
-                }}
-                style={{
-                  padding: '8px 12px',
-                  fontSize: '0.9em',
-                  background: updatingReadme ? '#1f6feb' : '#21262d',
-                  border: '1px solid #30363d',
-                  borderRadius: '6px',
-                  color: '#c9d1d9',
-                  cursor: updatingReadme ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}
-                disabled={updatingReadme}
-                title="Generate README with Gemini"
-              >
-                <span>📝</span>
-                <span>{updatingReadme ? 'Generating...' : 'Update README'}</span>
-              </button>
-              <button
-                onClick={async () => {
-                  if (!showSummary) {
-                    setLoadingSummary(true)
-                    try {
-                      const res = await axios.get(`${API_URL}/repo/summary`)
-                      setRepoSummary(res.data)
-                      setShowSummary(true)
-                    } catch (err) {
-                      console.error('Failed to fetch repo summary:', err)
-                    } finally {
-                      setLoadingSummary(false)
-                    }
-                  } else {
-                    setShowSummary(false)
-                  }
-                }}
-                style={{ 
-                  padding: '8px 12px', 
-                  fontSize: '0.9em',
-                  background: showSummary ? '#1f6feb' : '#21262d',
-                  border: '1px solid #30363d',
-                  borderRadius: '6px',
-                  color: '#c9d1d9',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}
-                title={showSummary ? 'Hide Summary' : 'Show Repository Summary'}
-                disabled={loadingSummary}
-              >
-                <span>📋</span>
-                <span>{loadingSummary ? 'Loading...' : (showSummary ? 'Hide Summary' : 'Summary')}</span>
-              </button>
             </>
           )}
-          <button 
-            onClick={() => setShowChat(!showChat)} 
-            style={{ 
-              padding: '8px 12px', 
+          <button
+            onClick={() => setShowSettings(true)}
+            style={{
+              padding: '8px 12px',
               fontSize: '0.9em',
-              background: showChat ? '#1f6feb' : '#21262d',
+              background: '#21262d',
               border: '1px solid #30363d',
               borderRadius: '6px',
               color: '#c9d1d9',
@@ -359,10 +317,10 @@ function App() {
               alignItems: 'center',
               gap: '6px'
             }}
-            title={showChat ? 'Close AI Agent' : 'Open AI Agent'}
+            title="Settings"
           >
-            <span>🤖</span>
-            <span>{showChat ? 'Close' : 'AI Agent'}</span>
+            <span>⚙️</span>
+            <span>Settings</span>
           </button>
         </div>
       </header>
@@ -385,43 +343,76 @@ function App() {
               onOpenFile={setSelectedFile}
               onFileReverted={() => handleManualUpdate(true)}
             />
+            {/* Repository Settings - Bottom of Left Panel */}
+            <div style={{
+              padding: '16px',
+              background: '#161b22',
+              borderTop: '1px solid #30363d',
+              flexShrink: 0
+            }}>
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontSize: '0.95em', fontWeight: '600', color: '#c9d1d9', marginBottom: '8px' }}>
+                  Repository Settings
+                </div>
+                <div style={{ marginBottom: '6px' }}>
+                  <div style={{ fontSize: '0.75em', color: '#8b949e', marginBottom: '2px' }}>Repository Name</div>
+                  <div style={{ fontSize: '0.85em', color: '#c9d1d9' }}>
+                    {repoPath.split(/[\\/]/).pop()}
+                  </div>
+                </div>
+                <div style={{ marginBottom: '8px' }}>
+                  <div style={{ fontSize: '0.75em', color: '#8b949e', marginBottom: '2px' }}>Path</div>
+                  <div style={{ fontSize: '0.75em', color: '#8b949e', wordBreak: 'break-all' }}>
+                    {repoPath}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '6px', flexDirection: 'column' }}>
+                <button onClick={() => handleManualUpdate(true)} className="primary" style={{ padding: '6px 12px', fontSize: '0.85em', width: '100%' }}>Update</button>
+                <button onClick={resetRepo} style={{ padding: '6px 12px', fontSize: '0.85em', background: '#21262d', border: '1px solid #30363d', borderRadius: '6px', color: '#c9d1d9', cursor: 'pointer', width: '100%' }}>Change Repository</button>
+              </div>
+            </div>
           </div>
         )}
 
         {/* Main Content Area */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', overflow: 'auto', padding: '24px' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', overflow: 'auto', padding: '24px', paddingBottom: repoPath ? '120px' : '24px' }}>
           <RepoInput
             onSetRepo={setRepo}
             currentPath={repoPath}
             onReset={resetRepo}
             onUpdate={() => handleManualUpdate(true)}
+            onOpenSettings={() => setShowSettings(true)}
           />
 
           {repoPath && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Git Controls */}
-              <GitControls
-                repoPath={repoPath}
-                onActionComplete={() => handleManualUpdate(true)}
-                lastUpdated={statusData}
-              />
-
-              {/* Action Panel */}
-              {statusData && statusData.dsl_suggestion && (
-                <ActionPanel
-                  dsl={statusData.dsl_suggestion}
-                  onExecute={executeDSL}
-                />
-              )}
-
-              {/* File Explorer - Optional, can be shown in main area if needed */}
-              {showFiles && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, minHeight: 0 }}>
+              {/* Diff Viewer or File Explorer */}
+              {selectedFile ? (
+                <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                  <DiffViewer 
+                    filePath={selectedFile}
+                    onClose={() => setSelectedFile(null)}
+                  />
+                </div>
+              ) : showFiles ? (
                 <div style={{ width: '100%' }}>
                   <FileExplorer
                     repoPath={repoPath}
                     onSelectFile={setSelectedFile}
                     refreshTrigger={fileRefreshTrigger}
                   />
+                </div>
+              ) : (
+                <div style={{ 
+                  flex: 1, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  color: '#8b949e',
+                  fontSize: '0.9em'
+                }}>
+                  Select a file from the changes list to view its diff
                 </div>
               )}
             </div>
@@ -451,32 +442,106 @@ function App() {
           </div>
         )}
 
-        {/* File Editor Modal/Overlay */}
-        {selectedFile && (
+        {/* Git Controls - Fixed at Bottom */}
+        {repoPath && (
           <div style={{
             position: 'fixed',
-            top: '60px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: '80%',
-            height: '80%',
-            zIndex: 1000,
-            boxShadow: '0 0 20px rgba(0,0,0,0.5)'
+            bottom: '0',
+            left: repoPath && statusData ? '350px' : '0',
+            right: showLogs ? '300px' : '0',
+            zIndex: 100,
+            padding: '12px 24px',
+            background: '#0d1117',
+            borderTop: '1px solid #30363d',
+            transition: 'right 0.3s ease'
           }}>
-            <FileEditor
-              filePath={selectedFile}
-              onClose={() => setSelectedFile(null)}
+            <GitControls
+              repoPath={repoPath}
+              onActionComplete={() => handleManualUpdate(true)}
+              lastUpdated={statusData}
             />
           </div>
         )}
+
+        {/* Bottom Right Buttons - AI Agent and Summary */}
+        {repoPath && (
+          <div style={{
+            position: 'fixed',
+            bottom: '20px',
+            right: showLogs ? '320px' : '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            zIndex: 1000,
+            transition: 'right 0.3s ease'
+          }}>
+            <button
+              onClick={async () => {
+                if (!showSummary) {
+                  setLoadingSummary(true)
+                  try {
+                    const res = await axios.get(`${API_URL}/repo/summary`)
+                    setRepoSummary(res.data)
+                    setShowSummary(true)
+                  } catch (err) {
+                    console.error('Failed to fetch repo summary:', err)
+                  } finally {
+                    setLoadingSummary(false)
+                  }
+                } else {
+                  setShowSummary(false)
+                }
+              }}
+              style={{ 
+                padding: '8px 12px', 
+                fontSize: '0.9em',
+                background: showSummary ? '#1f6feb' : '#21262d',
+                border: '1px solid #30363d',
+                borderRadius: '6px',
+                color: '#c9d1d9',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+              }}
+              title={showSummary ? 'Hide Summary' : 'Show Repository Summary'}
+              disabled={loadingSummary}
+            >
+              <span>📋</span>
+              <span>{loadingSummary ? 'Loading...' : (showSummary ? 'Hide Summary' : 'Summary')}</span>
+            </button>
+            <button 
+              onClick={() => setShowChat(!showChat)} 
+              style={{ 
+                padding: '8px 12px', 
+                fontSize: '0.9em',
+                background: showChat ? '#1f6feb' : '#21262d',
+                border: '1px solid #30363d',
+                borderRadius: '6px',
+                color: '#c9d1d9',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+              }}
+              title={showChat ? 'Close AI Agent' : 'Open AI Agent'}
+            >
+              <span>🤖</span>
+              <span>{showChat ? 'Close' : 'AI Agent'}</span>
+            </button>
+          </div>
+        )}
+
       </div>
 
       {/* Chatbot Widget - Floating */}
       {showChat && (
         <div style={{
           position: 'fixed',
-          bottom: '20px',
-          right: '20px',
+          bottom: '100px',
+          right: showLogs ? '320px' : '20px',
           width: '400px',
           height: '600px',
           zIndex: 10000,
@@ -488,7 +553,8 @@ function App() {
           background: '#161b22',
           border: '1px solid #30363d',
           animation: 'slideInUp 0.3s ease-out',
-          pointerEvents: 'auto'
+          pointerEvents: 'auto',
+          transition: 'right 0.3s ease'
         }}>
           <ChatInterface onExecuteDSL={executeDSL} />
         </div>
@@ -739,6 +805,26 @@ function App() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Setup Screen - shown when API key is not configured */}
+      {showSetup && (
+        <SetupScreen onComplete={handleSetupComplete} />
+      )}
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <Settings
+          onClose={() => {
+            setShowSettings(false)
+            // Re-check API key status after closing settings
+            checkApiKeyStatus()
+          }}
+          onKeyChanged={() => {
+            // Re-check API key status when key is changed
+            checkApiKeyStatus()
+          }}
+        />
       )}
     </div>
   )
